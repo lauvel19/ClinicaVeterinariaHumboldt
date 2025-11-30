@@ -5,6 +5,7 @@ import "dayjs/locale/es";
 import toast from "react-hot-toast";
 
 import { FacturasRepository, type FacturaPagoRequest } from "../services/FacturasRepository";
+import { PagoOnlineModal } from "./PagoOnlineModal";
 import type { ApiFacturaResponse } from "../../shared/types/backend";
 
 dayjs.locale("es");
@@ -18,6 +19,7 @@ interface FacturaDetailModalProps {
 export const FacturaDetailModal = ({ isOpen, facturaId, onClose }: FacturaDetailModalProps) => {
   const queryClient = useQueryClient();
   const [isPagoModalOpen, setIsPagoModalOpen] = useState(false);
+  const [isPagoOnlineModalOpen, setIsPagoOnlineModalOpen] = useState(false);
   const [formaPago, setFormaPago] = useState("");
 
   const { data: factura, isLoading } = useQuery({
@@ -174,6 +176,12 @@ export const FacturaDetailModal = ({ isOpen, facturaId, onClose }: FacturaDetail
             {factura.estado === "PENDIENTE" && (
               <>
                 <button
+                  onClick={() => setIsPagoOnlineModalOpen(true)}
+                  className="rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-soft transition-base hover:bg-primary-dark"
+                >
+                  💳 Pagar Online
+                </button>
+                <button
                   onClick={() => setIsPagoModalOpen(true)}
                   className="rounded-2xl bg-success px-4 py-2 text-sm font-semibold text-white shadow-soft transition-base hover:bg-success/90"
                 >
@@ -194,6 +202,20 @@ export const FacturaDetailModal = ({ isOpen, facturaId, onClose }: FacturaDetail
             )}
           </div>
         </div>
+
+        {/* Modal de pago online */}
+        {factura && (
+          <PagoOnlineModal
+            isOpen={isPagoOnlineModalOpen}
+            facturaId={factura.idFactura}
+            numeroFactura={factura.numero}
+            montoTotal={factura.total}
+            nombreCliente={factura.cliente?.nombreCompleto}
+            emailCliente={factura.cliente?.correo}
+            telefonoCliente={factura.cliente?.telefono}
+            onClose={() => setIsPagoOnlineModalOpen(false)}
+          />
+        )}
 
         {/* Modal de pago */}
         {isPagoModalOpen && (

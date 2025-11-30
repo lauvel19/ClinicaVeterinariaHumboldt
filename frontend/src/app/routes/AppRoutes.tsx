@@ -94,6 +94,12 @@ const FacturasPage = lazy(() =>
   })),
 );
 
+const PagoResultadoPage = lazy(() =>
+  import("../../modules/facturas/pages/PagoResultadoPage").then((module) => ({
+    default: module.PagoResultadoPage,
+  })),
+);
+
 const ReportesPage = lazy(() =>
   import("../../modules/reportes/pages/ReportesPage").then((module) => ({
     default: module.ReportesPage,
@@ -220,6 +226,16 @@ export const AppRoutes = ({ renderDashboard }: AppRoutesProps) => {
 
       {/* Ruta de login: si ya está autenticado, redirige al dashboard */}
       <Route path="/auth/login" element={<LoginGuard />} />
+
+      {/* Ruta pública para resultado de pago de ePayco */}
+      <Route
+        path="/facturas/pago-resultado"
+        element={
+          <Suspense fallback={<FullscreenLoader />}>
+            <PagoResultadoPage />
+          </Suspense>
+        }
+      />
 
       {/* Rutas protegidas del dashboard */}
       <Route element={renderDashboard()}>
