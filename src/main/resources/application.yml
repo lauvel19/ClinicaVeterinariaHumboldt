@@ -98,6 +98,19 @@ app:
     upload-dir: ./uploads
     max-size: 10485760  # 10MB
 
+  # ePayco - Pagos Online
+  epayco:
+    public-key: ${EPAYCO_PUBLIC_KEY:test_pub_key_123456}
+    private-key: ${EPAYCO_PRIVATE_KEY:test_priv_key_123456}
+    customer-id: ${EPAYCO_CUSTOMER_ID:1}
+    test-mode: true
+    api-url: https://secure.epayco.co
+    confirmation-url: ${EPAYCO_CONFIRMATION_URL:http://localhost:8080/api/pagos/webhook/epayco}
+    response-url: ${EPAYCO_RESPONSE_URL:http://localhost:5173/facturas/pago-resultado}
+    currency: COP
+    country: CO
+    lang: ES
+
 # ============================================
 # LOGGING
 # ============================================

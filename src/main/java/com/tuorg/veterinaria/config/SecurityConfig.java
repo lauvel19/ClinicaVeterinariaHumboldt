@@ -79,6 +79,7 @@ public class SecurityConfig {
                         // Endpoints públicos (sin /api porque el context-path ya lo incluye)
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/configuracion/parametros/**").permitAll()
+                        .requestMatchers("/pagos/webhook/epayco").permitAll() // Webhook de ePayco
                         // Swagger/OpenAPI endpoints públicos para documentación
                         .requestMatchers(
                                 "/swagger-ui", "/swagger-ui.html", "/swagger-ui/**", 
