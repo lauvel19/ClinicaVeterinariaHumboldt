@@ -287,7 +287,7 @@ const CreatePacienteModal = ({ isOpen, onClose, onSuccess }: CreatePacienteModal
         raza: data.raza,
         fechaNacimiento: data.fechaNacimiento,
         sexo: data.sexo,
-        peso: parseFloat(data.peso),
+        pesoKg: data.peso ? parseFloat(data.peso) : undefined,
         estadoSalud: data.estadoSalud || undefined,
         clienteId: parseInt(data.clienteId),
       });
@@ -390,11 +390,8 @@ const CreatePacienteModal = ({ isOpen, onClose, onSuccess }: CreatePacienteModal
                 required
               >
                 <option value="">Seleccionar especie</option>
-                <option value="Perro">Perro</option>
-                <option value="Gato">Gato</option>
-                <option value="Ave">Ave</option>
-                <option value="Conejo">Conejo</option>
-                <option value="Otro">Otro</option>
+                <option value="perro">Perro</option>
+                <option value="gato">Gato</option>
               </select>
             </div>
 

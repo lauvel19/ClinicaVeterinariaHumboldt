@@ -6,7 +6,6 @@ import toast from "react-hot-toast";
 import { VacunacionesRepository, type VacunacionRequest } from "../services/VacunacionesRepository";
 import { PacientesRepository } from "../../pacientes/services/PacientesRepository";
 import { VeterinariosRepository } from "../../usuarios/services/VeterinariosRepository";
-import { authStore } from "../../../shared/state/authStore";
 
 interface CreateVacunacionModalProps {
   readonly isOpen: boolean;
@@ -21,11 +20,11 @@ interface FormData {
   proximaDosis: string;
   lote: string;
   observaciones: string;
+  veterinarioId: string;
 }
 
 export const CreateVacunacionModal = ({ isOpen, onClose, pacienteId: initialPacienteId }: CreateVacunacionModalProps) => {
   const queryClient = useQueryClient();
-  const user = authStore((state) => state.user);
   const {
     register,
     handleSubmit,
@@ -70,7 +69,7 @@ export const CreateVacunacionModal = ({ isOpen, onClose, pacienteId: initialPaci
       tipoVacuna: data.tipoVacuna,
       fechaAplicacion: data.fechaAplicacion,
       proximaDosis: data.proximaDosis || undefined,
-      veterinarioId: user?.id,
+      veterinarioId: parseInt(data.veterinarioId, 10),
       lote: data.lote || undefined,
       observaciones: data.observaciones || undefined,
     };
@@ -108,6 +107,22 @@ export const CreateVacunacionModal = ({ isOpen, onClose, pacienteId: initialPaci
               ))}
             </select>
             {errors.pacienteId && <p className="mt-1 text-xs text-danger">{errors.pacienteId.message}</p>}
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-secondary">Veterinario *</label>
+            <select
+              {...register("veterinarioId", { required: "Debe seleccionar un veterinario" })}
+              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="">Seleccionar veterinario</option>
+              {veterinarios?.map((vet) => (
+                <option key={vet.id} value={vet.id}>
+                  Dr. {vet.nombre} {vet.apellido} {vet.especialidad ? `- ${vet.especialidad}` : ""}
+                </option>
+              ))}
+            </select>
+            {errors.veterinarioId && <p className="mt-1 text-xs text-danger">{errors.veterinarioId.message}</p>}
           </div>
 
           <div>
