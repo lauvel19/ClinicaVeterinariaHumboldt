@@ -1,17 +1,8 @@
 -- V11__fix_solicitudes_citas_audit_columns.sql
--- Renombra las columnas de auditoría para que coincidan con la clase Auditable
+-- Las columnas de auditoría ya están correctamente nombradas en V4
+-- Esta migración es un placeholder para mantener la secuencia de versiones
 
-ALTER TABLE solicitudes_citas 
-    RENAME COLUMN fecha_creacion TO created_at;
+-- No se requieren cambios, las columnas created_at, updated_at, created_by, updated_by
+-- ya existen desde V4__create_solicitudes_citas_table.sql
 
-ALTER TABLE solicitudes_citas 
-    RENAME COLUMN fecha_actualizacion TO updated_at;
-
-ALTER TABLE solicitudes_citas 
-    RENAME COLUMN creado_por TO created_by;
-
-ALTER TABLE solicitudes_citas 
-    RENAME COLUMN actualizado_por TO updated_by;
-
--- Comentario para descripción
-COMMENT ON TABLE solicitudes_citas IS 'Tabla para almacenar solicitudes de cita del portal del cliente que requieren aprobación del secretario (columnas de auditoría alineadas con Auditable)';
+SELECT 1; -- Migración vacía exitosa
