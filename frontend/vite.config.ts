@@ -4,6 +4,9 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  esbuild: {
+    logOverride: { "this-is-undefined-in-esm": "silent" }
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -15,11 +18,7 @@ export default defineConfig({
     strictPort: false,
     open: false,
   },
-  esbuild: {
-    logOverride: { "this-is-undefined-in-esm": "silent" }
-  },
   build: {
-    outDir: 'dist',
     sourcemap: false,
     minify: true,
     commonjsOptions: {
