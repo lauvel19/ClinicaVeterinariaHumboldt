@@ -3,6 +3,7 @@ package com.tuorg.veterinaria.config;
 import com.tuorg.veterinaria.config.security.JwtAuthenticationEntryPoint;
 import com.tuorg.veterinaria.config.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -53,7 +54,31 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    
+    /**
+     * Orígenes permitidos para CORS desde configuración.
+     */
+    @Value("${app.cors.allowed-origins}")
+    private String allowedOrigins;
+
+    /**
+     * Métodos HTTP permitidos para CORS.
+     */
+    @Value("${app.cors.allowed-methods}")
+    private String allowedMethods;
+
+    /**
+     * Headers permitidos para CORS.
+     */
+    @Value("${app.cors.allowed-headers}")
+    private String allowedHeaders;
+
+    /**
+     * Permitir credenciales en CORS.
+     */
+    @Value("${app.cors.allow-credentials}")
+    private boolean allowCredentials;
+
+
     /**
      * Configura la cadena de filtros de seguridad.
      * 
@@ -119,27 +144,42 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-    
-        configuration.setAllowedOriginPatterns(List.of(
-                "https://clinicaveterinariahumboldt.up.railway.app",
-                "http://localhost:*"
-        ));
-    
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
-        configuration.addExposedHeader("Authorization");
-    
+
+        // Configurar orígenes permitidos
+        List<String> origins = Arrays.asList(allowedOrigins.split(","));
+        configuration.setAllowedOrigins(origins);
+
+        // Configurar métodos HTTP permitidos
+        List<String> methods = Arrays.asList(allowedMethods.split(","));
+        configuration.setAllowedMethods(methods);
+
+        // Configurar headers
+        if ("*".equals(allowedHeaders)) {
+            configuration.setAllowedHeaders(List.of("*"));
+        } else {
+            configuration.setAllowedHeaders(Arrays.asList(allowedHeaders.split(",")));
+        }
+
+        // Configurar credenciales
+        configuration.setAllowCredentials(allowCredentials);
+
+        // Exponer headers de autorización
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
+
+        // Tiempo de cache para preflight requests
+        configuration.setMaxAge(3600L);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 
-
     /**
      * Bean para el gestor de autenticación.
      * 
-     * @param authConfig Configuración de autenticación
+     * @param http HttpSecurity para configurar
+     * @param passwordEncoder Codificador de contraseñas
+     * @param userDetailsService Servicio de detalles de usuario
      * @return AuthenticationManager
      * @throws Exception Si hay error en la configuración
      */

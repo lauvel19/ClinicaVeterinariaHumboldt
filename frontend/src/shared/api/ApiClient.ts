@@ -8,6 +8,12 @@ import { authStore } from "../state/authStore";
 // URL base del backend. Se puede parametrizar mediante variables de entorno.
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080/api";
 
+// Log para verificar la URL base configurada
+console.log("🔧 Configuración API Client:");
+console.log("  - BASE_URL:", BASE_URL);
+console.log("  - VITE_API_URL:", import.meta.env.VITE_API_URL);
+console.log("  - MODE:", import.meta.env.MODE);
+
 let apiClient: AxiosInstance | null = null;
 
 const buildClient = (): AxiosInstance => {
