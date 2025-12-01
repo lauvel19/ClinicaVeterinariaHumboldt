@@ -53,6 +53,7 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    
     /**
      * Configura la cadena de filtros de seguridad.
      * 
@@ -61,58 +62,48 @@ public class SecurityConfig {
      * @throws Exception Si hay error en la configuración
      */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // Deshabilitar CSRF porque usamos JWT
                 .csrf(csrf -> csrf.disable())
-                // Configurar CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                // Configurar manejo de excepciones
                 .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint(jwtAuthenticationEntryPoint))
-                // Configurar política de sesiones (stateless porque usamos JWT)
+                .authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Configurar autorización de endpoints
-                // NOTA: El context-path es /api, por lo que las rutas aquí NO deben incluir /api
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints públicos (sin /api porque el context-path ya lo incluye)
-                        .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/configuracion/parametros/**").permitAll()
-                        // Swagger/OpenAPI endpoints públicos para documentación
-                        .requestMatchers(
-                                "/swagger-ui", "/swagger-ui.html", "/swagger-ui/**", 
-                                "/v3/api-docs", "/v3/api-docs/**",
-                                "/swagger-resources", "/swagger-resources/**", 
-                                "/webjars/**"
-                        ).permitAll()
-                        // Todos los demás endpoints requieren autenticación
-                        .anyRequest().authenticated())
-                // Agregar filtro JWT antes del filtro de autenticación por defecto
+
+                // === FRONTEND ===
+                .requestMatchers(
+                        "/",                  
+                        "/index.html",
+                        "/static/**",
+                        "/assets/**",
+                        "/favicon.ico",
+                        "/manifest.json",
+                        "/logo192.png",
+                        "/logo512.png"
+                ).permitAll()
+
+                // === ENDPOINTS PÚBLICOS DE LA API (/api/...) ===
+                .requestMatchers("/auth/**").permitAll()
+                .requestMatchers("/configuracion/parametros/**").permitAll()
+
+                // === SWAGGER ===
+                .requestMatchers(
+                        "/swagger-ui", "/swagger-ui.html", "/swagger-ui/**", 
+                        "/v3/api-docs", "/v3/api-docs/**",
+                        "/swagger-resources", "/swagger-resources/**", 
+                        "/webjars/**"
+                ).permitAll()
+
+                // === TODO LO DEMÁS DE LA API VA CON JWT ===
+                .anyRequest().authenticated()
+                )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
+        }
 
-    /**
-     * Configuración CORS para permitir peticiones desde el frontend.
-     * 
-     * @return CorsConfigurationSource configurado
-     */
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("http://localhost:*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
-        configuration.addExposedHeader("Authorization");
-        configuration.addExposedHeader("Content-Type");
-        
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
 
     /**
      * Bean para el codificador de contraseñas.
@@ -124,6 +115,20 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+
+    @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(List.of("*")); // O ajusta según tu necesidad
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
+        }
 
     /**
      * Bean para el gestor de autenticación.
