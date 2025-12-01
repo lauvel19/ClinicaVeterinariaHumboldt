@@ -11,8 +11,8 @@ spring:
   # ============================================
   datasource:
     url: jdbc:postgresql://localhost:5432/veterinaria_db
-    username: vet_admin
-    password: Petrico123  # ⚠️ Solo para desarrollo local
+    username: ${DB_USERNAME:vet_admin}
+    password: ${DB_PASSWORD:}  # Se inyecta desde variable de entorno
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10

@@ -23,16 +23,23 @@ import java.util.List;
 
 /**
  * Controlador REST para la gestión de citas.
- * 
+ *
  * Este controlador expone endpoints para programar, reprogramar,
  * cancelar y consultar citas médicas con soporte de paginación.
- * 
+ *
  * @author Equipo de Desarrollo
  * @version 1.0.0
  */
 @RestController
 @RequestMapping("/citas")
 public class CitaController {
+
+    // Constantes para roles
+    private static final String ROLE_CLIENTE = "ROLE_CLIENTE";
+
+    // Constantes para mensajes
+    private static final String MSG_USUARIO_NO_ENCONTRADO = "Usuario no encontrado";
+    private static final String MSG_CITAS_OBTENIDAS = "Citas obtenidas exitosamente";
 
     /**
      * Servicio de gestión de citas.
@@ -42,7 +49,7 @@ public class CitaController {
 
     /**
      * Constructor con inyección de dependencias.
-     * 
+     *
      * @param citaService Servicio de citas
      * @param usuarioRepository Repositorio de usuarios
      */
@@ -58,7 +65,7 @@ public class CitaController {
      * Programa una nueva cita.
      * - CLIENTE: Solo puede agendar citas para sus propios pacientes
      * - VETERINARIO/SECRETARIO: Puede agendar citas para cualquier paciente
-     * 
+     *
      * @param cita Cita a programar
      * @param authentication Información del usuario autenticado
      * @return Respuesta con la cita creada
@@ -68,21 +75,19 @@ public class CitaController {
     public ResponseEntity<ApiResponse<CitaResponse>> programar(
             @RequestBody @Valid CitaRequest cita,
             Authentication authentication) {
-        
-        // Obtener el ID del usuario autenticado desde username
+
         String username = authentication.getName();
         Long userId = usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"))
+                .orElseThrow(() -> new RuntimeException(MSG_USUARIO_NO_ENCONTRADO))
                 .getIdUsuario();
-        
-        // Determinar si es cliente para validar pertenencia del paciente
+
         boolean esCliente = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_CLIENTE"));
-        
-        CitaResponse citaCreada = esCliente 
-            ? citaService.programar(cita, userId)
-            : citaService.programar(cita);
-            
+                .anyMatch(a -> a.getAuthority().equals(ROLE_CLIENTE));
+
+        CitaResponse citaCreada = esCliente
+                ? citaService.programar(cita, userId)
+                : citaService.programar(cita);
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Cita programada exitosamente", citaCreada));
     }
@@ -91,7 +96,7 @@ public class CitaController {
      * Reprograma una cita existente.
      * - CLIENTE: Solo puede reprogramar sus propias citas
      * - VETERINARIO/SECRETARIO: Puede reprogramar cualquier cita
-     * 
+     *
      * @param citaId ID de la cita
      * @param request Cuerpo con la nueva fecha y hora
      * @param authentication Información del usuario autenticado
@@ -103,21 +108,19 @@ public class CitaController {
             @PathVariable Long citaId,
             @RequestBody @Valid CitaReprogramarRequest request,
             Authentication authentication) {
-        
-        // Obtener el ID del usuario autenticado desde username
+
         String username = authentication.getName();
         Long userId = usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"))
+                .orElseThrow(() -> new RuntimeException(MSG_USUARIO_NO_ENCONTRADO))
                 .getIdUsuario();
-        
-        // Determinar si es cliente para validar pertenencia del paciente
+
         boolean esCliente = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_CLIENTE"));
-        
+                .anyMatch(a -> a.getAuthority().equals(ROLE_CLIENTE));
+
         CitaResponse cita = esCliente
-            ? citaService.reprogramar(citaId, request, userId)
-            : citaService.reprogramar(citaId, request);
-            
+                ? citaService.reprogramar(citaId, request, userId)
+                : citaService.reprogramar(citaId, request);
+
         return ResponseEntity.ok(ApiResponse.success("Cita reprogramada exitosamente", cita));
     }
 
@@ -125,7 +128,7 @@ public class CitaController {
      * Cancela una cita.
      * - CLIENTE: Solo puede cancelar sus propias citas
      * - VETERINARIO/SECRETARIO: Puede cancelar cualquier cita
-     * 
+     *
      * @param citaId ID de la cita
      * @param request Cuerpo con el motivo de cancelación
      * @param authentication Información del usuario autenticado
@@ -137,28 +140,26 @@ public class CitaController {
             @PathVariable Long citaId,
             @RequestBody @Valid CitaCancelarRequest request,
             Authentication authentication) {
-        
-        // Obtener el ID del usuario autenticado desde username
+
         String username = authentication.getName();
         Long userId = usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"))
+                .orElseThrow(() -> new RuntimeException(MSG_USUARIO_NO_ENCONTRADO))
                 .getIdUsuario();
-        
-        // Determinar si es cliente para validar pertenencia del paciente
+
         boolean esCliente = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_CLIENTE"));
-        
+                .anyMatch(a -> a.getAuthority().equals(ROLE_CLIENTE));
+
         CitaResponse cita = esCliente
-            ? citaService.cancelar(citaId, request, userId)
-            : citaService.cancelar(citaId, request);
-            
+                ? citaService.cancelar(citaId, request, userId)
+                : citaService.cancelar(citaId, request);
+
         return ResponseEntity.ok(ApiResponse.success("Cita cancelada exitosamente", cita));
     }
 
     /**
      * Marca una cita como completada.
      * Solo veterinarios pueden marcar citas como completadas.
-     * 
+     *
      * @param citaId ID de la cita
      * @return Respuesta con la cita completada
      */
@@ -172,31 +173,31 @@ public class CitaController {
     /**
      * Obtiene todas las citas.
      * Solo personal (veterinarios y secretarios) puede ver todas las citas.
-     * 
+     *
      * @return Respuesta con la lista de todas las citas
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('VETERINARIO', 'SECRETARIO')")
     public ResponseEntity<ApiResponse<List<CitaResponse>>> obtenerTodas() {
         List<CitaResponse> citas = citaService.obtenerTodas();
-        return ResponseEntity.ok(ApiResponse.success("Citas obtenidas exitosamente", citas));
+        return ResponseEntity.ok(ApiResponse.success(MSG_CITAS_OBTENIDAS, citas));
     }
 
     /**
      * Obtiene todas las citas de un paciente.
-     * 
+     *
      * @param pacienteId ID del paciente
      * @return Respuesta con la lista de citas
      */
     @GetMapping("/paciente/{pacienteId}")
     public ResponseEntity<ApiResponse<List<CitaResponse>>> obtenerPorPaciente(@PathVariable Long pacienteId) {
         List<CitaResponse> citas = citaService.obtenerPorPaciente(pacienteId);
-        return ResponseEntity.ok(ApiResponse.success("Citas obtenidas exitosamente", citas));
+        return ResponseEntity.ok(ApiResponse.success(MSG_CITAS_OBTENIDAS, citas));
     }
 
     /**
      * Obtiene todas las citas de un paciente con paginación.
-     * 
+     *
      * @param pacienteId ID del paciente
      * @param page Número de página (base 0)
      * @param size Tamaño de página
@@ -211,31 +212,31 @@ public class CitaController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "fechaHora") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction) {
-        
+
         Sort.Direction sortDirection = Sort.Direction.fromString(direction);
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
-        
+
         Page<CitaResponse> citasPage = citaService.obtenerPorPacientePaginado(pacienteId, pageable);
         PageResponse<CitaResponse> response = new PageResponse<>(citasPage);
-        
-        return ResponseEntity.ok(ApiResponse.success("Citas obtenidas exitosamente", response));
+
+        return ResponseEntity.ok(ApiResponse.success(MSG_CITAS_OBTENIDAS, response));
     }
 
     /**
      * Obtiene todas las citas de un veterinario.
-     * 
+     *
      * @param veterinarioId ID del veterinario
      * @return Respuesta con la lista de citas
      */
     @GetMapping("/veterinario/{veterinarioId}")
     public ResponseEntity<ApiResponse<List<CitaResponse>>> obtenerPorVeterinario(@PathVariable Long veterinarioId) {
         List<CitaResponse> citas = citaService.obtenerPorVeterinario(veterinarioId);
-        return ResponseEntity.ok(ApiResponse.success("Citas obtenidas exitosamente", citas));
+        return ResponseEntity.ok(ApiResponse.success(MSG_CITAS_OBTENIDAS, citas));
     }
 
     /**
      * Obtiene todas las citas de un veterinario con paginación.
-     * 
+     *
      * @param veterinarioId ID del veterinario
      * @param page Número de página (base 0)
      * @param size Tamaño de página
@@ -250,20 +251,20 @@ public class CitaController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "fechaHora") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction) {
-        
+
         Sort.Direction sortDirection = Sort.Direction.fromString(direction);
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortBy));
-        
+
         Page<CitaResponse> citasPage = citaService.obtenerPorVeterinarioPaginado(veterinarioId, pageable);
         PageResponse<CitaResponse> response = new PageResponse<>(citasPage);
-        
-        return ResponseEntity.ok(ApiResponse.success("Citas obtenidas exitosamente", response));
+
+        return ResponseEntity.ok(ApiResponse.success(MSG_CITAS_OBTENIDAS, response));
     }
 
     /**
      * Verifica si una fecha y hora está disponible para un veterinario.
      * Cualquier usuario autenticado puede verificar disponibilidad.
-     * 
+     *
      * @param veterinarioId ID del veterinario
      * @param fechaHora Fecha y hora a verificar (formato: yyyy-MM-ddTHH:mm)
      * @return Respuesta indicando si está disponible
@@ -282,7 +283,7 @@ public class CitaController {
 
     /**
      * Obtiene los horarios disponibles y ocupados para un veterinario en una fecha específica.
-     * 
+     *
      * @param veterinarioId ID del veterinario
      * @param fecha Fecha en formato YYYY-MM-DD
      * @return Lista de horarios con su estado de disponibilidad
@@ -293,9 +294,8 @@ public class CitaController {
             @RequestParam Long veterinarioId,
             @RequestParam String fecha) {
         java.time.LocalDate fechaParsed = java.time.LocalDate.parse(fecha);
-        List<com.tuorg.veterinaria.prestacioneservicios.dto.HorarioDisponibilidadResponse> horarios = 
+        List<com.tuorg.veterinaria.prestacioneservicios.dto.HorarioDisponibilidadResponse> horarios =
                 citaService.obtenerHorariosDelDia(veterinarioId, fechaParsed);
         return ResponseEntity.ok(ApiResponse.success("Horarios obtenidos exitosamente", horarios));
     }
 }
-

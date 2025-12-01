@@ -6,18 +6,19 @@ import type { AuthUser } from "../../../shared/state/authStore";
 import { AuthRepository } from "./AuthRepository";
 import type { LoginRequestDTO } from "../types";
 
+type LoginResponse = Awaited<ReturnType<typeof AuthRepository.login>>;
+
 const toAuthUser = (responseUser: LoginResponse["usuario"]): AuthUser => ({
   id: responseUser.idUsuario,
   nombre: responseUser.nombre,
   apellido: responseUser.apellido,
   correo: responseUser.correo,
-  rol: responseUser.rol as AuthUser["rol"],
+  rol: responseUser.rol,
 });
 
-type LoginResponse = Awaited<ReturnType<typeof AuthRepository.login>>;
-
 const isBypassEnabled =
-  (typeof import.meta.env !== "undefined" && import.meta.env.VITE_BYPASS_AUTH === "true") || window.location.search.includes("bypassAuth=true");
+    import.meta.env?.VITE_BYPASS_AUTH === "true" ||
+    globalThis.location.search.includes("bypassAuth=true");
 
 export const AuthService = {
   login: async (payload: LoginRequestDTO) => {
@@ -35,10 +36,10 @@ export const AuthService = {
 
     // Asegurar que los campos no estén vacíos o solo con espacios
     const trimmedPayload: LoginRequestDTO = {
-      username: payload.username?.trim() || "",
-      password: payload.password?.trim() || "",
+      username: payload.username?.trim() ?? "",
+      password: payload.password?.trim() ?? "",
     };
-    
+
     if (!trimmedPayload.username || !trimmedPayload.password) {
       throw new Error("El usuario y la contraseña son obligatorios");
     }
@@ -54,5 +55,3 @@ export const AuthService = {
     authStore.getState().clearSession();
   },
 };
-
-

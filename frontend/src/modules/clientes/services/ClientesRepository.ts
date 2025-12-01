@@ -28,9 +28,13 @@ export interface ClienteUpdateRequest {
 
 export const ClientesRepository = {
   getAll: async (): Promise<ApiClienteResponse[]> => {
+    console.log("🔍 ClientesRepository.getAll() - Iniciando petición...");
     const client = getApiClient();
     const { data } = await client.get<ApiResponse<ApiClienteResponse[]>>(BASE_PATH);
-    return unwrapResponse(data);
+    console.log("📦 ClientesRepository.getAll() - Respuesta recibida:", data);
+    const unwrapped = unwrapResponse(data);
+    console.log("✅ ClientesRepository.getAll() - Datos procesados:", unwrapped);
+    return unwrapped;
   },
 
   getById: async (id: number): Promise<ApiClienteResponse> => {

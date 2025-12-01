@@ -12,10 +12,10 @@ import jakarta.mail.internet.MimeMessage;
 
 /**
  * Implementación concreta de CanalEnvio para envío por email.
- * 
+ *
  * Esta clase extiende CanalEnvio e implementa la estrategia de envío
  * por correo electrónico (Strategy pattern).
- * 
+ *
  * @author Equipo de Desarrollo
  * @version 1.0.0
  */
@@ -50,37 +50,33 @@ public class CanalEmail extends CanalEnvio {
 
     /**
      * Implementación del método enviar para email.
-     * 
+     *
      * @param notificacion Notificación a enviar
      * @return true si el envío fue exitoso, false en caso contrario
      */
     @Override
     public boolean enviar(Notificacion notificacion) {
-        // Validar que el JavaMailSender esté configurado
         if (mailSender == null) {
             log.error("JavaMailSender no está configurado. Verifica la configuración de Spring Mail.");
             return false;
         }
 
         try {
-            // Crear mensaje MIME para HTML
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
-            
+
             helper.setFrom(fromAddress);
             helper.setTo(extraerEmailDestinatario(notificacion));
             helper.setSubject(construirAsunto(notificacion));
-            
-            // Construir contenido HTML profesional
-            String htmlContent = construirEmailHTML(notificacion);
-            helper.setText(htmlContent, true); // true = es HTML
 
-            // Enviar el email
+            String htmlContent = construirEmailHTML(notificacion);
+            helper.setText(htmlContent, true);
+
             mailSender.send(mimeMessage);
-            
+
             log.info("Email HTML enviado exitosamente a través de {}", smtpServer);
             log.debug("Para: {}, Asunto: {}", extraerEmailDestinatario(notificacion), construirAsunto(notificacion));
-            
+
             return true;
 
         } catch (Exception e) {
@@ -95,26 +91,20 @@ public class CanalEmail extends CanalEnvio {
      */
     private String extraerEmailDestinatario(Notificacion notificacion) {
         try {
-            // Parsear el JSON de datos para obtener el destinatario
             String datosJson = notificacion.getDatos();
-            if (datosJson != null && !datosJson.isEmpty()) {
-                // Buscar el campo "destinatario" en el JSON
-                // Formato esperado: {"destinatario":"email@ejemplo.com", ...}
-                if (datosJson.contains("\"destinatario\"")) {
-                    int inicioEmail = datosJson.indexOf("\"destinatario\":\"") + 16;
-                    int finEmail = datosJson.indexOf("\"", inicioEmail);
-                    if (finEmail > inicioEmail) {
-                        String emailDestinatario = datosJson.substring(inicioEmail, finEmail);
-                        log.debug("Destinatario extraído: {}", emailDestinatario);
-                        return emailDestinatario;
-                    }
+            if (datosJson != null && !datosJson.isEmpty() && datosJson.contains("\"destinatario\"")) {
+                int inicioEmail = datosJson.indexOf("\"destinatario\":\"") + 16;
+                int finEmail = datosJson.indexOf("\"", inicioEmail);
+                if (finEmail > inicioEmail) {
+                    String emailDestinatario = datosJson.substring(inicioEmail, finEmail);
+                    log.debug("Destinatario extraído: {}", emailDestinatario);
+                    return emailDestinatario;
                 }
             }
         } catch (Exception e) {
             log.warn("Error al extraer destinatario, usando from_address: {}", e.getMessage());
         }
-        
-        // Fallback: Si no se puede extraer el destinatario, usar from_address
+
         log.warn("No se pudo extraer destinatario, usando from_address: {}", fromAddress);
         return fromAddress;
     }
@@ -124,63 +114,57 @@ public class CanalEmail extends CanalEnvio {
      */
     private String construirAsunto(Notificacion notificacion) {
         String tipoFormateado = notificacion.getTipo()
-            .replace("_", " ")
-            .toLowerCase();
-        
-        // Capitalizar primera letra de cada palabra
+                .replace("_", " ")
+                .toLowerCase();
+
         String[] palabras = tipoFormateado.split(" ");
         StringBuilder asunto = new StringBuilder();
         for (String palabra : palabras) {
             if (!palabra.isEmpty()) {
                 asunto.append(Character.toUpperCase(palabra.charAt(0)))
-                      .append(palabra.substring(1))
-                      .append(" ");
+                        .append(palabra.substring(1))
+                        .append(" ");
             }
         }
-        
-        return "🐾 Clínica Veterinaria Humboldt - " + asunto.toString().trim();
+
+        return "\uD83D\uDC3E Clínica Veterinaria Humboldt - " + asunto.toString().trim();
     }
-    
+
     /**
      * Construye el contenido HTML profesional del email con diseño responsive y colores.
      */
     private String construirEmailHTML(Notificacion notificacion) {
         String mensaje = notificacion.getMensaje();
         String tipo = notificacion.getTipo();
-        
-        // Colores según el tipo de notificación - Azul profesional
-        String colorPrincipal = "#1565C0"; // Azul oscuro profesional
-        String colorSecundario = "#1976D2"; // Azul medio
+
+        String colorPrincipal = "#1565C0";
+        String colorSecundario = "#1976D2";
         String tituloNotificacion = "Confirmación de Cita";
-        
+
         if (tipo.contains("CANCELADA")) {
-            colorPrincipal = "#C62828"; // Rojo
+            colorPrincipal = "#C62828";
             colorSecundario = "#EF5350";
             tituloNotificacion = "Cita Cancelada";
         } else if (tipo.contains("REPROGRAMADA")) {
-            colorPrincipal = "#F57C00"; // Naranja
+            colorPrincipal = "#F57C00";
             colorSecundario = "#FF9800";
             tituloNotificacion = "Cita Reprogramada";
         }
-        
-        // Limpiar mensaje: remover asteriscos y emojis excesivos
+
         String mensajeLimpio = mensaje
-            .replace("🐾 *", "")
-            .replace("*", "")
-            .replace("📅 ", "")
-            .replace("🐕 ", "")
-            .replace("👨‍⚕️ ", "")
-            .replace("🏥 ", "")
-            .replace("📍 ", "")
-            .replace("📞 ", "")
-            .replace("📧 ", "")
-            .replace("🔄 ", "")
-            .replace("❌ ", "")
-            .trim();
-        
-        // Logo de la clínica (URL pública o base64)
-        String logoUrl = "https://i.imgur.com/placeholder-vet-logo.png"; // Cambiar por URL real del logo
-        
+                .replace("\uD83D\uDC3E *", "")
+                .replace("*", "")
+                .replace("\uD83D\uDCC5 ", "")
+                .replace("\uD83D\uDC15 ", "")
+                .replace("\uD83D\uDC68\u200D\u2695\uFE0F ", "")
+                .replace("\uD83C\uDFE5 ", "")
+                .replace("\uD83D\uDCCD ", "")
+                .replace("\uD83D\uDCDE ", "")
+                .replace("\uD83D\uDCE7 ", "")
+                .replace("\uD83D\uDD04 ", "")
+                .replace("\u274C ", "")
+                .trim();
+
         return """
             <!DOCTYPE html>
             <html lang="es">
@@ -199,7 +183,7 @@ public class CanalEmail extends CanalEnvio {
                                 <tr>
                                     <td style="background: linear-gradient(135deg, %s 0%%, %s 100%%); padding: 50px 40px; text-align: center; position: relative;">
                                         <div style="background-color: rgba(255,255,255,0.15); width: 80px; height: 80px; margin: 0 auto 20px; border-radius: 50%%; display: inline-block; line-height: 80px; font-size: 40px;">
-                                            🐾
+                                            \uD83D\uDC3E
                                         </div>
                                         <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.5px; text-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                                             Clínica Veterinaria Humboldt
@@ -274,13 +258,12 @@ public class CanalEmail extends CanalEnvio {
             </body>
             </html>
             """.formatted(
-                colorPrincipal, 
-                colorSecundario, 
-                colorPrincipal, 
+                colorPrincipal,
+                colorSecundario,
+                colorPrincipal,
                 tituloNotificacion,
                 colorPrincipal,
                 mensajeLimpio.replace("\n", "<br>")
-            );
+        );
     }
 }
-

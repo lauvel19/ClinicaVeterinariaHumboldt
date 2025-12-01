@@ -60,3 +60,5 @@ uploads/
 application-local.yml
 application-local.properties
 
+# Node modules
+frontend/node_modules

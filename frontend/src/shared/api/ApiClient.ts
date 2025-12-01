@@ -25,28 +25,27 @@ const buildClient = (): AxiosInstance => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    // Log temporal para debug
-    if (config.url?.includes("/auth/login")) {
-      console.log("📤 Request config:", {
-        url: config.url,
-        method: config.method,
-        baseURL: config.baseURL,
-        headers: config.headers,
-        data: config.data,
-      });
-    }
+    // Log detallado para debug
+    console.log("📤 HTTP Request:", {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      fullURL: `${config.baseURL}${config.url}`,
+      hasToken: !!token,
+    });
     return config;
   });
 
   // Interceptor de respuesta para logging y unificación de errores.
   instance.interceptors.response.use(
     (response: AxiosResponse) => {
-      if (response.config.url?.includes("/auth/login")) {
-        console.log("✅ Login exitoso:", response.status, response.data);
-      }
-      if (response.config.url?.includes("/horarios-disponibles")) {
-        console.log("✅ Horarios obtenidos:", response.status, response.data);
-      }
+      console.log("✅ HTTP Response:", {
+        method: response.config.method?.toUpperCase(),
+        url: response.config.url,
+        status: response.status,
+        dataType: typeof response.data,
+        hasData: !!response.data,
+        dataKeys: response.data && typeof response.data === 'object' ? Object.keys(response.data) : [],
+      });
       return response;
     },
     (error) => {
@@ -57,7 +56,7 @@ const buildClient = (): AxiosInstance => {
         if (!isLoginRequest) {
           console.warn("⚠️ Error 401 - Token inválido o expirado. Cerrando sesión...");
           // Limpiar el estado de autenticación
-          authStore.getState().logout();
+          authStore.getState().clearSession();
           // Redirigir al login
           globalThis.location.href = "/login";
           return Promise.reject(error);
@@ -65,28 +64,14 @@ const buildClient = (): AxiosInstance => {
       }
 
       // Log detallado del error
-      if (error.config?.url?.includes("/auth/login")) {
-        const errorData = error.response?.data;
-        console.error("❌ Error en login:", {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: errorData,
-          message: error.message,
-          validationErrors: errorData?.data, // Errores de validación del backend
-        });
-      } else if (error.config?.url?.includes("/horarios-disponibles")) {
-        console.error("❌ Error obteniendo horarios:", {
-          url: error.config?.url,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          message: error.message,
-        });
-      } else if (error.response?.status === 401) {
-        console.error("❌ Error 401 - No autenticado");
-      } else {
-        console.error("Error en solicitud HTTP:", error);
-      }
+      console.error("❌ HTTP Error:", {
+        method: error.config?.method?.toUpperCase(),
+        url: error.config?.url,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+      });
       return Promise.reject(error);
     },
   );
