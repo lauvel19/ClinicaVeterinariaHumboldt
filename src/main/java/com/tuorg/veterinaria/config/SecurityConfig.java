@@ -117,18 +117,24 @@ public class SecurityConfig {
     }
 
     @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*")); // O ajusta según tu necesidad
+    
+        configuration.setAllowedOriginPatterns(List.of(
+                "https://clinicaveterinariahumboldt.up.railway.app",
+                "http://localhost:*"
+        ));
+    
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
-
+        configuration.addExposedHeader("Authorization");
+    
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-
         return source;
-        }
+    }
+
 
     /**
      * Bean para el gestor de autenticación.
