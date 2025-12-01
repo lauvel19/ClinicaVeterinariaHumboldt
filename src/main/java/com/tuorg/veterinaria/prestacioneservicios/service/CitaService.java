@@ -84,58 +84,87 @@ public class CitaService {
     /**
      * Programa una nueva cita validando disponibilidad, referencias y propiedad del paciente.
      * 
-     * @param request Datos de la cita
-     * @param clienteId ID del cliente que está creando la cita (null para veterinarios/secretarios)
-     * @return Cita creada
+     * Flujo de programación de cita:
+     * 1. Valida existencia del paciente
+     * 2. Si es cliente, verifica que el paciente le pertenezca
+     * 3. Valida existencia y rol del veterinario
+     * 4. Valida fecha/hora no esté en el pasado
+     * 5. Valida anticipación mínima (ej: 24 horas antes)
+     * 6. Valida horario laboral permitido
+     * 7. Valida límite de citas por día del cliente
+     * 8. Valida disponibilidad del veterinario (sin conflictos)
+     * 9. Crea cita con estado PROGRAMADA
+     * 10. Publica evento asíncrono para notificaciones
+     * 
+     * @param request DTO con datos de la cita (pacienteId, veterinarioId, fechaHora, etc)
+     * @param clienteId ID del cliente que crea la cita (null para veterinarios/secretarios)
+     * @return CitaResponse con datos de la cita creada
+     * @throws ResourceNotFoundException si paciente o veterinario no existen
+     * @throws BusinessException si alguna validación falla (conflicto horario, anticipación, etc)
      */
     @Transactional
     public CitaResponse programar(CitaRequest request, Long clienteId) {
+        // PASO 1: Validar existencia del paciente
         Paciente paciente = pacienteRepository.findById(request.getPacienteId())
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente", "id", request.getPacienteId()));
 
-        // Si es un cliente quien crea la cita, validar que el paciente le pertenezca
+        // PASO 2: Si es cliente quien crea la cita, verificar propiedad del paciente
+        // Previene que un cliente cree citas para pacientes de otros clientes
         if (clienteId != null) {
             Cliente cliente = paciente.getCliente();
             if (cliente == null || !cliente.getIdUsuario().equals(clienteId)) {
+                log.warn("❌ Intento de crear cita de cliente {} para paciente que no le pertenece", clienteId);
                 throw new BusinessException("Solo puede agendar citas para sus propios pacientes");
             }
         }
 
+        // PASO 3: Validar existencia y rol del veterinario
         Usuario usuario = usuarioRepository.findById(request.getVeterinarioId())
                 .orElseThrow(() -> new ResourceNotFoundException("Veterinario", "id", request.getVeterinarioId()));
 
+        // Verificar que sea un veterinario (usar instanceof para verificar rol)
         if (!(usuario instanceof UsuarioVeterinario veterinario)) {
+            log.error("❌ Usuario {} no es veterinario", request.getVeterinarioId());
             throw new BusinessException("El usuario indicado no corresponde a un veterinario activo");
         }
 
         LocalDateTime fechaHora = request.getFechaHora();
         
-        // Validar que la fecha no sea en el pasado
+        // PASO 4: Validar que la fecha no sea en el pasado
         if (fechaHora.isBefore(LocalDateTime.now())) {
+            log.warn("❌ Intento de agendar cita en el pasado: {}", fechaHora);
             throw new BusinessException("No se puede programar una cita en el pasado");
         }
         
-        // Validar anticipación mínima
+        // PASO 5: Validar anticipación mínima
+        // AppConstants.ANTICIPACION_MINIMA_HORAS define el tiempo mínimo (ej: 24 horas)
         LocalDateTime anticipacionMinima = LocalDateTime.now().plusHours(AppConstants.ANTICIPACION_MINIMA_HORAS);
         if (fechaHora.isBefore(anticipacionMinima)) {
+            log.warn("❌ Anticipación insuficiente: solicitada {}, mínima {}", fechaHora, anticipacionMinima);
             throw new BusinessException("Debe agendar la cita con al menos " + 
                 AppConstants.ANTICIPACION_MINIMA_HORAS + " horas de anticipación");
         }
         
-        // Validar horario laboral
+        // PASO 6: Validar horario laboral permitido
+        // Solo se permiten citas dentro de horarios configurados
         validarHorarioLaboral(fechaHora);
         
-        // Validar límite de citas por día para el cliente
+        // PASO 7: Validar límite de citas por día del cliente
+        // Previene que un cliente agende demasiadas citas en un mismo día
         Cliente cliente = paciente.getCliente();
         if (cliente != null) {
             validarLimiteCitasPorDia(cliente.getIdUsuario(), fechaHora);
         }
 
-        // Validar disponibilidad considerando la duración de la cita
+        // PASO 8: Validar disponibilidad del veterinario
+        // Verifica que no exista conflicto con otras citas en ese horario
+        // Considerando duración estimada de la cita
         if (!validarDisponibilidad(veterinario.getIdUsuario(), fechaHora)) {
+            log.warn("❌ Veterinario {} no disponible para fecha-hora: {}", veterinario.getIdUsuario(), fechaHora);
             throw new BusinessException("El veterinario ya tiene una cita programada en ese horario. Por favor, seleccione otra fecha y hora");
         }
 
+        // PASO 9: Crear entidad de cita con estado inicial PROGRAMADA
         Cita cita = new Cita();
         cita.setPaciente(paciente);
         cita.setVeterinario(veterinario);
@@ -146,8 +175,11 @@ public class CitaService {
         cita.setEstado(AppConstants.ESTADO_CITA_PROGRAMADA);
 
         Cita guardada = citaRepository.save(cita);
+        log.info("✅ Cita programada exitosamente: ID={}, Paciente={}, Veterinario={}, Fecha={}", 
+            guardada.getIdCita(), paciente.getIdPaciente(), veterinario.getIdUsuario(), fechaHora);
         
-        // Publicar evento para envío asíncrono de notificación
+        // PASO 10: Publicar evento asíncrono para notificaciones
+        // El evento es procesado por NotificacionEventListener de forma asíncrona
         publicarEventoCitaCreada(guardada);
         
         return mapToResponse(guardada);

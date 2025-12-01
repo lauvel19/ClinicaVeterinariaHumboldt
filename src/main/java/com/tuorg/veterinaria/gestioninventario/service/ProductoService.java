@@ -45,10 +45,23 @@ public class ProductoService {
     }
 
     /**
-     * Crea un nuevo producto.
+     * Crea un nuevo producto en el inventario con validaciones de negocio.
      * 
-     * @param producto Producto a crear
-     * @return Producto creado
+     * Flujo de creación:
+     * 1. Valida que el SKU sea único (no exista en BD)
+     * 2. Valida que el precio unitario sea >= 0
+     * 3. Valida que el stock inicial sea >= 0
+     * 4. Crea entidad con datos suministrados
+     * 5. Persiste en base de datos
+     * 6. Invalida cache para reflejar cambios inmediatamente
+     * 
+     * La anotación @Caching invalida dos caches:
+     * - "productos": Cache de listado completo
+     * - "productosPorTipo": Cache de productos por tipo
+     * 
+     * @param request DTO con SKU, nombre, descripción, tipo, precio, UM, stock inicial, metadatos
+     * @return ProductoResponse con datos del producto creado
+     * @throws BusinessException si SKU duplicado, precio negativo, o stock negativo
      */
     @Transactional
     @Caching(evict = {
@@ -56,28 +69,37 @@ public class ProductoService {
         @CacheEvict(value = "productosPorTipo", allEntries = true)
     })
     public ProductoResponse crear(ProductoRequest request) {
+        // VALIDACIÓN 1: Verificar unicidad de SKU
+        // SKU (Stock Keeping Unit) es el identificador único del producto
         if (productoRepository.existsBySku(request.getSku())) {
             throw new BusinessException("El SKU ya está en uso");
         }
 
+        // VALIDACIÓN 2: Verificar que precio sea >= 0
+        // Usa utilidad centralizada para validaciones numétricas
         ValidationUtil.validateNonNegativeNumber(
                 request.getPrecioUnitario().doubleValue(), "precio_unitario");
 
+        // VALIDACIÓN 3: Verificar que stock inicial sea >= 0
         if (request.getStock() != null && request.getStock() < 0) {
             throw new BusinessException("El stock inicial no puede ser negativo");
         }
 
+        // PASO 4: Crear entidad de producto con datos del request
         Producto producto = new Producto();
         producto.setSku(request.getSku());
         producto.setNombre(request.getNombre());
         producto.setDescripcion(request.getDescripcion());
-        producto.setTipo(request.getTipo());
+        producto.setTipo(request.getTipo()); // Categoría del producto (medicamentos, instrumental, etc)
         producto.setPrecioUnitario(request.getPrecioUnitario());
-        producto.setUm(request.getUm());
+        producto.setUm(request.getUm()); // Unidad de Medida (ml, mg, unidad, etc)
+        // Si no se especifica stock, se inicia en 0
         producto.setStock(request.getStock() != null ? request.getStock() : 0);
-        producto.setMetadatos(request.getMetadatos());
+        producto.setMetadatos(request.getMetadatos()); // JSON flexible para propiedades personalizadas
 
+        // PASO 5: Persistir en base de datos
         Producto guardado = productoRepository.save(producto);
+        
         return mapToResponse(guardado);
     }
 
@@ -154,11 +176,22 @@ public class ProductoService {
     }
 
     /**
-     * Actualiza el stock de un producto.
+     * Actualiza el stock de un producto de forma atómica y transaccional.
      * 
-     * @param productoId ID del producto
-     * @param delta Cantidad a agregar (positiva) o restar (negativa)
-     * @return Producto actualizado
+     * Flujo de actualización de stock:
+     * 1. Obtiene el producto por ID
+     * 2. Calcula nuevo stock (stock_actual + delta)
+     * 3. Valida que nuevo stock >= 0 (no permitir negativos)
+     * 4. Persiste el cambio en BD
+     * 5. Invalida caches para reflejar cambio inmediatamente
+     * 
+     * Nota: Delta puede ser positivo (entrada) o negativo (salida/consumo)
+     * 
+     * @param productoId ID del producto a actualizar
+     * @param delta Incremento (positivo) o decremento (negativo) del stock
+     * @return Producto con stock actualizado
+     * @throws ResourceNotFoundException si producto no existe
+     * @throws BusinessException si resultado sería negativo
      */
     @Transactional
     @Caching(evict = {
@@ -166,14 +199,23 @@ public class ProductoService {
         @CacheEvict(value = "productosPorTipo", allEntries = true)
     })
     public Producto actualizarStock(Long productoId, Integer delta) {
+        // PASO 1: Obtener producto por ID
         Producto producto = obtenerEntidad(productoId);
+        
+        // PASO 2: Calcular nuevo stock
         int nuevoStock = producto.getStock() + delta;
 
+        // PASO 3: Validar que nuevo stock no sea negativo
+        // Previene insolvencia de stock (situación crítica)
         if (nuevoStock < 0) {
             throw new BusinessException("No hay suficiente stock disponible. Stock actual: " + producto.getStock());
         }
 
+        // PASO 4: Actualizar stock en entidad
         producto.setStock(nuevoStock);
+        
+        // PASO 5: Persistir cambio (dentro de transacción @Transactional)
+        // Los caches se invalidan automáticamente por la anotación @Caching
         return productoRepository.save(producto);
     }
 
