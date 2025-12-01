@@ -43,6 +43,11 @@ bin/
 # VS Code
 .vscode/
 
+# Node.js / Frontend
+node_modules/
+dist/
+.vite/
+
 # OS
 .DS_Store
 Thumbs.db
