@@ -7,19 +7,19 @@
     "types": ["vite/client"],
 
     "skipLibCheck": true,
-    "jsx": "react-jsx",
+    "noEmit": true,
+    "strict": false,
+
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "verbatimModuleSyntax": false,
 
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": false,
     "moduleDetection": "force",
-    "noEmit": true,
 
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "jsx": "react-jsx",
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"]
 }
-
