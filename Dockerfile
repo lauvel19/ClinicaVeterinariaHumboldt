@@ -1,30 +1,52 @@
-# Stage 1: Build
-FROM maven:3.9.5-eclipse-temurin-17 AS build
+# ---------------------------
+# STAGE 1: Build Frontend
+# ---------------------------
+FROM node:18 AS frontend-build
 WORKDIR /app
 
-# Copiar archivos de configuración Maven
+# Copiar dependencias
+COPY frontend/package*.json ./frontend/
+WORKDIR /app/frontend
+RUN npm install
+
+# Copiar resto del frontend
+COPY frontend /app/frontend
+
+# Generar build
+RUN npm run build
+
+
+# ---------------------------
+# STAGE 2: Build Backend
+# ---------------------------
+FROM maven:3.9.5-eclipse-temurin-17 AS backend-build
+WORKDIR /app
+
+# Copiar pom.xml y src del backend
 COPY pom.xml ./
 COPY src ./src
 
-# Compilar el proyecto (saltando tests para build más rápido)
+# Copiar build del frontend al backend
+COPY --from=frontend-build /app/frontend/dist ./src/main/resources/static
+
+# Build backend con Maven
 RUN mvn clean package -DskipTests
 
-# Stage 2: Runtime
+
+# ---------------------------
+# STAGE 3: Runtime
+# ---------------------------
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 
-# Copiar el JAR desde la etapa de build
-COPY --from=build /app/target/veterinaria-backend-*.jar app.jar
+# Copiar JAR final
+COPY --from=backend-build /app/target/*.jar app.jar
 
-# Variables de entorno por defecto
 ENV JAVA_OPTS="-Xms256m -Xmx1024m"
 ENV SERVER_PORT=8080
 
-# Exponer puerto
 EXPOSE 8080
 
-# Usuario no-root para seguridad
 USER 1000
 
-# Comando de inicio
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
