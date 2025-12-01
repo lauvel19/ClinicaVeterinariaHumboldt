@@ -26,7 +26,7 @@ public interface AuditoriaDetalladaRepository extends JpaRepository<AuditoriaDet
      * @param pageable Configuración de paginación
      * @return Página de auditorías del usuario
      */
-    @Query("SELECT ad FROM AuditoriaDetallada ad WHERE ad.usuario.idUsuario = :usuarioId ORDER BY ad.createdAt DESC")
+    @Query("SELECT ad FROM AuditoriaDetallada ad WHERE ad.usuario.idPersona = :usuarioId ORDER BY ad.createdAt DESC")
     Page<AuditoriaDetallada> findByUsuarioId(@Param("usuarioId") Long usuarioId, Pageable pageable);
 
     /**
@@ -82,7 +82,7 @@ public interface AuditoriaDetalladaRepository extends JpaRepository<AuditoriaDet
      * @param fechaFin Fecha de fin
      * @return Número de auditorías
      */
-    @Query("SELECT COUNT(ad) FROM AuditoriaDetallada ad WHERE ad.usuario.idUsuario = :usuarioId AND ad.createdAt BETWEEN :fechaInicio AND :fechaFin")
+    @Query("SELECT COUNT(ad) FROM AuditoriaDetallada ad WHERE ad.usuario.idPersona = :usuarioId AND ad.createdAt BETWEEN :fechaInicio AND :fechaFin")
     long countByUsuarioIdAndFechaBetween(
         @Param("usuarioId") Long usuarioId,
         @Param("fechaInicio") LocalDateTime fechaInicio,
