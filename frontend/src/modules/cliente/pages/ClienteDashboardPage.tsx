@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays, PawPrint, FileText, CreditCard } from "lucide-react";
+import { IconCalendar, IconPaw, IconDocument, IconCreditCard } from "../../../shared/components/icons";
 import { authStore } from "../../../shared/state/authStore";
 import { getApiClient } from "../../../shared/api/ApiClient";
 import { unwrapResponse } from "../../../shared/api/ApiResponseAdapter";
@@ -127,7 +127,7 @@ export const ClienteDashboardPage = () => {
           <div className="flex items-center space-x-4">
             <div className="flex-shrink-0">
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <CalendarDays className="w-6 h-6 text-blue-600" />
+                <IconCalendar className="w-6 h-6 text-blue-600" />
               </div>
             </div>
             <div className="flex-1">
@@ -156,7 +156,7 @@ export const ClienteDashboardPage = () => {
           <div className="flex items-center space-x-4">
             <div className="flex-shrink-0">
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <PawPrint className="w-6 h-6 text-green-600" />
+                <IconPaw className="w-6 h-6 text-green-600" />
               </div>
             </div>
             <div>
@@ -173,7 +173,7 @@ export const ClienteDashboardPage = () => {
           <div className="flex items-center space-x-4">
             <div className="flex-shrink-0">
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <FileText className="w-6 h-6 text-purple-600" />
+                <IconDocument className="w-6 h-6 text-purple-600" />
               </div>
             </div>
             <div>
@@ -197,7 +197,7 @@ export const ClienteDashboardPage = () => {
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-500 transition-colors">
-                <PawPrint className="w-5 h-5 text-blue-600 group-hover:text-white" />
+                <IconPaw className="w-5 h-5 text-blue-600 group-hover:text-white" />
               </div>
               <div>
                 <p className="font-medium text-gray-900">Mis Mascotas</p>
@@ -213,7 +213,7 @@ export const ClienteDashboardPage = () => {
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-500 transition-colors">
-                <CalendarDays className="w-5 h-5 text-green-600 group-hover:text-white" />
+                <IconCalendar className="w-5 h-5 text-green-600 group-hover:text-white" />
               </div>
               <div>
                 <p className="font-medium text-gray-900">Mis Citas</p>
@@ -229,7 +229,7 @@ export const ClienteDashboardPage = () => {
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-500 transition-colors">
-                <FileText className="w-5 h-5 text-purple-600 group-hover:text-white" />
+                <IconDocument className="w-5 h-5 text-purple-600 group-hover:text-white" />
               </div>
               <div>
                 <p className="font-medium text-gray-900">Historial Médico</p>
@@ -245,7 +245,7 @@ export const ClienteDashboardPage = () => {
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center group-hover:bg-yellow-500 transition-colors">
-                <CreditCard className="w-5 h-5 text-yellow-600 group-hover:text-white" />
+                <IconCreditCard className="w-5 h-5 text-yellow-600 group-hover:text-white" />
               </div>
               <div>
                 <p className="font-medium text-gray-900">Mis Facturas</p>
