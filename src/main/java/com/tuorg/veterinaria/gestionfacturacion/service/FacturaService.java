@@ -37,14 +37,17 @@ public class FacturaService {
     private final FacturaRepository facturaRepository;
     private final UsuarioRepository usuarioRepository;
     private final ObjectMapper objectMapper;
+    private final FacturaPDFService facturaPDFService;
 
     @Autowired
     public FacturaService(FacturaRepository facturaRepository,
                           UsuarioRepository usuarioRepository,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          FacturaPDFService facturaPDFService) {
         this.facturaRepository = facturaRepository;
         this.usuarioRepository = usuarioRepository;
         this.objectMapper = objectMapper;
+        this.facturaPDFService = facturaPDFService;
     }
 
     /**
@@ -116,11 +119,19 @@ public class FacturaService {
     }
 
     @Transactional(readOnly = true)
+    /**
+     * Genera un PDF para la factura especificada
+     * 
+     * @param facturaId ID de la factura
+     * @return Array de bytes con el PDF generado
+     * @throws ResourceNotFoundException Si la factura no existe
+     * @throws BusinessException Si ocurre un error en la generación
+     */
     public byte[] generarPDF(Long facturaId) {
-        obtener(facturaId);
-        // Nota: La generación real de PDF se implementará con iText o JasperReports
-        // cuando se requiera la funcionalidad completa de exportación
-        return new byte[0];
+        Factura factura = facturaRepository.findById(facturaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Factura", "id", facturaId));
+        
+        return facturaPDFService.generarPDFFactura(factura);
     }
 
     @Transactional

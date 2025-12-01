@@ -1,0 +1,1 @@
+import{b as a,e as n}from"./index-CiFN73wj.js";const o="/servicios-prestados",r={getByCita:async t=>{const e=a(),{data:s}=await e.get(`${o}/cita/${t}`);return n(s)},generarResumen:async t=>{const e=a(),{data:s}=await e.get(`${o}/${t}/resumen`);return n(s)},create:async t=>{const e=a(),{data:s}=await e.post(o,t);return n(s)}};export{r as C};

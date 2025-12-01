@@ -1,0 +1,1 @@
+import{b as e,e as s}from"./index-CiFN73wj.js";const c="/clientes",r={getAll:async()=>{const t=e(),{data:n}=await t.get(c);return s(n)},getById:async t=>{const n=e(),{data:a}=await n.get(`${c}/${t}`);return s(a)},create:async t=>{const n=e(),{data:a}=await n.post(c,t);return s(a)},update:async(t,n)=>{const a=e(),{data:o}=await a.put(`${c}/${t}`,n);return s(o)}};export{r as C};

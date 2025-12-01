@@ -1,0 +1,1 @@
+import{u as o}from"./useQuery-CJN-frkN.js";import{a as t}from"./index-CiFN73wj.js";import{C as i}from"./CitasRepository-BsGZ0zFJ.js";const u=()=>{const r=t(e=>e.user);return o({queryKey:["citas-veterinario",r?.id],enabled:!!r?.id,queryFn:async()=>{if(!r)throw new Error("Usuario no autenticado");return i.getByVeterinario(r.id)}})};export{u};
