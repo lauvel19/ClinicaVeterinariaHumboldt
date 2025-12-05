@@ -1,6 +1,7 @@
 package com.tuorg.veterinaria.common.event;
 
-import com.tuorg.veterinaria.configuracion.service.LogSistemaService;
+// TODO: Reactivar cuando se implemente LogSistemaService
+// import com.tuorg.veterinaria.configuracion.service.LogSistemaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,11 +23,12 @@ public class NotificacionEventListener {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificacionEventListener.class);
 
-    private final LogSistemaService logSistemaService;
+    // TODO: Reactivar cuando se implemente LogSistemaService
+    // private final LogSistemaService logSistemaService;
 
     @Autowired
-    public NotificacionEventListener(LogSistemaService logSistemaService) {
-        this.logSistemaService = logSistemaService;
+    public NotificacionEventListener(/* LogSistemaService logSistemaService */) {
+        // this.logSistemaService = logSistemaService;
     }
 
     /**
@@ -40,15 +42,16 @@ public class NotificacionEventListener {
         logger.info("Evento de notificación recibido: {} - ID: {}", 
                 event.getTipoEvento(), event.getNotificacion().getIdNotificacion());
         
+        // TODO: Reactivar cuando se implemente LogSistemaService
         // Registrar en log del sistema
-        logSistemaService.registrarEvento(
+        /* logSistemaService.registrarEvento(
                 "NotificacionService",
                 "INFO",
                 String.format("Notificación %s: %s (ID: %d)",
                         event.getTipoEvento(),
                         event.getNotificacion().getMensaje(),
                         event.getNotificacion().getIdNotificacion())
-        );
+        ); */
         
         // Aquí se pueden agregar más acciones automáticas:
         // - Enviar notificaciones a administradores

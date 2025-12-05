@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 
 /**
  * Pruebas unitarias para FacturaService.
@@ -86,11 +87,10 @@ class FacturaServiceTest {
     void crearFacturaExitoso_DeberiaMapearCorrectamente() {
         // Arrange
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(cliente));
-        when(facturaRepository.findByNumero(anyString())).thenReturn(Optional.empty());
         when(facturaRepository.save(any(Factura.class))).thenReturn(facturaGuardada);
         try {
-            when(objectMapper.writeValueAsString(any())).thenReturn("{\"servicios\":\"Consulta veterinaria\"}");
-            when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(facturaRequest.getContenido());
+            lenient().when(objectMapper.writeValueAsString(any())).thenReturn("{\"servicios\":\"Consulta veterinaria\"}");
+            lenient().when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(facturaRequest.getContenido());
         } catch (Exception e) {
             // Ignorar
         }

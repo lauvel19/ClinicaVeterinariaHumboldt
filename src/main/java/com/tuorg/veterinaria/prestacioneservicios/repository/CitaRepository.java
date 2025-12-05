@@ -102,6 +102,21 @@ public interface CitaRepository extends JpaRepository<Cita, Long> {
                               @Param("estado") String estado);
 
     /**
+     * Verifica si un cliente tiene citas en un estado específico.
+     * 
+     * @param clienteId ID del cliente
+     * @param estado Estado de la cita
+     * @return true si existe al menos una cita en ese estado
+     */
+    @Query("SELECT COUNT(c) > 0 FROM Cita c " +
+           "JOIN c.paciente p " +
+           "JOIN p.cliente cl " +
+           "WHERE cl.id = :clienteId AND c.estado = :estado")
+    boolean existsByPaciente_Cliente_IdUsuarioAndEstado(
+            @Param("clienteId") Long clienteId,
+            @Param("estado") String estado);
+
+    /**
      * Busca una cita por ID cargando todas las relaciones necesarias para notificaciones.
      * Realiza JOIN FETCH para evitar LazyInitializationException.
      * 

@@ -27,6 +27,8 @@ export const CreatePacienteModal = ({ isOpen, onClose }: CreatePacienteModalProp
   const queryClient = useQueryClient();
   const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>();
   const [similarPatients, setSimilarPatients] = useState<any[]>([]);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const { data: clientes } = useQuery({
     queryKey: ["clientes"],
@@ -62,17 +64,64 @@ export const CreatePacienteModal = ({ isOpen, onClose }: CreatePacienteModalProp
   }, [nombreValue, especieValue, clienteIdValue, allPacientes]);
 
   const mutation = useMutation({
-    mutationFn: (data: PacienteRequest) => PacientesRepository.create(data),
+    mutationFn: async (data: PacienteRequest) => {
+      const paciente = await PacientesRepository.create(data);
+      
+      // Si hay una imagen seleccionada, subirla
+      if (selectedImage) {
+        try {
+          await PacientesRepository.subirFoto(paciente.id, selectedImage);
+        } catch (error) {
+          console.error("Error al subir la foto:", error);
+          // No fallar todo el proceso si la foto falla
+        }
+      }
+      
+      return paciente;
+    },
     onSuccess: () => {
       toast.success("Paciente registrado exitosamente");
       queryClient.invalidateQueries({ queryKey: ["pacientes"] });
       reset();
+      setSelectedImage(null);
+      setImagePreview(null);
       onClose();
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Error al registrar el paciente");
     },
   });
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validar tamaño (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("La imagen no debe superar los 5MB");
+        return;
+      }
+      
+      // Validar tipo
+      if (!file.type.startsWith("image/")) {
+        toast.error("El archivo debe ser una imagen");
+        return;
+      }
+      
+      setSelectedImage(file);
+      
+      // Crear preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
 
   const onSubmit = (data: FormData) => {
     const request: PacienteRequest = {
@@ -212,6 +261,60 @@ export const CreatePacienteModal = ({ isOpen, onClose }: CreatePacienteModalProp
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 placeholder="Ej: Estable, En tratamiento, etc."
               />
+            </div>
+
+            {/* Foto de Perfil */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                📸 Foto del Paciente
+              </label>
+              <div className="flex items-start gap-4">
+                {imagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="h-32 w-32 rounded-full object-cover border-4 border-primary/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute -top-2 -right-2 rounded-full bg-red-500 p-1.5 text-white transition-all hover:bg-red-600"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="h-32 w-32 rounded-full bg-blue-100 flex items-center justify-center border-4 border-blue-200">
+                    <svg className="h-16 w-16 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    </svg>
+                  </div>
+                )}
+                <div className="flex-1">
+                  <label
+                    htmlFor="foto-upload"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-all hover:bg-primary/90"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {imagePreview ? "Cambiar foto" : "Subir foto"}
+                  </label>
+                  <input
+                    id="foto-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    JPG, PNG, GIF o WEBP (máx. 5MB). Si no subes una foto, se mostrará un avatar genérico.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div>

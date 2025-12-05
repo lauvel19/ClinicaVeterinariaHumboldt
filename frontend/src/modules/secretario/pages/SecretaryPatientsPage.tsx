@@ -268,6 +268,8 @@ const CreatePacienteModal = ({ isOpen, onClose, onSuccess }: CreatePacienteModal
     estadoSalud: "",
     clienteId: "",
   });
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const { data: clientes } = useQuery({
     queryKey: ["clientes"],
@@ -279,18 +281,58 @@ const CreatePacienteModal = ({ isOpen, onClose, onSuccess }: CreatePacienteModal
     enabled: isOpen,
   });
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("La imagen no debe superar los 5MB");
+        return;
+      }
+      
+      if (!file.type.startsWith("image/")) {
+        toast.error("El archivo debe ser una imagen");
+        return;
+      }
+      
+      setSelectedImage(file);
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      return PacientesRepository.create({
+      const paciente = await PacientesRepository.create({
         nombre: data.nombre,
         especie: data.especie,
         raza: data.raza,
         fechaNacimiento: data.fechaNacimiento,
         sexo: data.sexo,
-        peso: parseFloat(data.peso),
+        pesoKg: parseFloat(data.peso),
         estadoSalud: data.estadoSalud || undefined,
         clienteId: parseInt(data.clienteId),
       });
+      
+      // Si hay una imagen seleccionada, subirla
+      if (selectedImage) {
+        try {
+          await PacientesRepository.subirFoto(paciente.id, selectedImage);
+        } catch (error) {
+          console.error("Error al subir la foto:", error);
+          // No fallar todo el proceso si la foto falla
+        }
+      }
+      
+      return paciente;
     },
     onSuccess: () => {
       toast.success("Paciente creado exitosamente");
@@ -314,6 +356,8 @@ const CreatePacienteModal = ({ isOpen, onClose, onSuccess }: CreatePacienteModal
       estadoSalud: "",
       clienteId: "",
     });
+    setSelectedImage(null);
+    setImagePreview(null);
   };
 
   const handleClose = () => {
@@ -333,10 +377,10 @@ const CreatePacienteModal = ({ isOpen, onClose, onSuccess }: CreatePacienteModal
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-xl">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-semibold text-secondary">Nuevo Paciente</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-2xl rounded-3xl bg-white p-4 sm:p-6 shadow-xl my-4 max-h-[95vh] overflow-y-auto">
+        <div className="mb-4 sm:mb-6 flex items-center justify-between sticky top-0 bg-white pb-3 border-b border-gray-100">
+          <h2 className="text-xl sm:text-2xl font-semibold text-secondary">Nuevo Paciente</h2>
           <button
             onClick={handleClose}
             className="rounded-full p-2 hover:bg-gray-100 transition-colors"
@@ -345,7 +389,7 @@ const CreatePacienteModal = ({ isOpen, onClose, onSuccess }: CreatePacienteModal
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -390,11 +434,8 @@ const CreatePacienteModal = ({ isOpen, onClose, onSuccess }: CreatePacienteModal
                 required
               >
                 <option value="">Seleccionar especie</option>
-                <option value="Perro">Perro</option>
-                <option value="Gato">Gato</option>
-                <option value="Ave">Ave</option>
-                <option value="Conejo">Conejo</option>
-                <option value="Otro">Otro</option>
+                <option value="perro">Perro</option>
+                <option value="gato">Gato</option>
               </select>
             </div>
 
@@ -455,20 +496,74 @@ const CreatePacienteModal = ({ isOpen, onClose, onSuccess }: CreatePacienteModal
                 <option value="Crítico">Crítico</option>
               </select>
             </div>
+
+            {/* Foto de Perfil */}
+            <div className="col-span-1 md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                📸 Foto del Paciente
+              </label>
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4">
+                {imagePreview ? (
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="h-24 w-24 sm:h-32 sm:w-32 rounded-full object-cover border-4 border-primary/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 rounded-full bg-red-500 p-1.5 text-white transition-all hover:bg-red-600"
+                    >
+                      <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="h-24 w-24 sm:h-32 sm:w-32 flex-shrink-0 rounded-full bg-blue-100 flex items-center justify-center border-4 border-blue-200">
+                    <svg className="h-12 w-12 sm:h-16 sm:w-16 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    </svg>
+                  </div>
+                )}
+                <div className="flex-1 w-full text-center sm:text-left">
+                  <label
+                    htmlFor="foto-upload-secretary"
+                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition-all hover:bg-primary/90 w-full sm:w-auto"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {imagePreview ? "Cambiar foto" : "Subir foto"}
+                  </label>
+                  <input
+                    id="foto-upload-secretary"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    JPG, PNG, GIF o WEBP (máx. 5MB). Opcional.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 sticky bottom-0 bg-white border-t border-gray-100 mt-4 pt-4">
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-xl border border-gray-200 px-6 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+              className="w-full sm:w-auto rounded-xl border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={createMutation.isPending}
-              className="rounded-xl bg-primary px-6 py-2 text-sm font-semibold text-white hover:bg-primary-dark transition-colors disabled:opacity-50"
+              className="w-full sm:w-auto rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark transition-colors disabled:opacity-50"
             >
               {createMutation.isPending ? "Creando..." : "Crear Paciente"}
             </button>

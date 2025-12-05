@@ -12,12 +12,12 @@ CREATE TABLE IF NOT EXISTS solicitudes_citas (
     motivo_rechazo TEXT,
     cita_id BIGINT,
     observaciones TEXT,
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    creado_por VARCHAR(100),
-    actualizado_por VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
     
-    CONSTRAINT fk_solicitud_cliente FOREIGN KEY (cliente_id) REFERENCES usuarios(id_persona) ON DELETE CASCADE,
+    CONSTRAINT fk_solicitud_cliente FOREIGN KEY (cliente_id) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
     CONSTRAINT fk_solicitud_paciente FOREIGN KEY (paciente_id) REFERENCES pacientes(id_paciente) ON DELETE CASCADE,
     CONSTRAINT fk_solicitud_cita FOREIGN KEY (cita_id) REFERENCES citas(id_cita) ON DELETE SET NULL
 );

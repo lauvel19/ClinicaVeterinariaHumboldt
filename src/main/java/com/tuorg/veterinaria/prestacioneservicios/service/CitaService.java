@@ -13,6 +13,8 @@ import com.tuorg.veterinaria.prestacioneservicios.dto.CitaCancelarRequest;
 import com.tuorg.veterinaria.prestacioneservicios.dto.CitaRequest;
 import com.tuorg.veterinaria.prestacioneservicios.dto.CitaResponse;
 import com.tuorg.veterinaria.prestacioneservicios.dto.CitaReprogramarRequest;
+import com.tuorg.veterinaria.prestacioneservicios.dto.CompletarConsultaRequest;
+import com.tuorg.veterinaria.gestionfacturacion.dto.FacturaRequest;
 import com.tuorg.veterinaria.prestacioneservicios.model.Cita;
 import com.tuorg.veterinaria.prestacioneservicios.repository.CitaRepository;
 import com.tuorg.veterinaria.notificaciones.service.NotificacionService;
@@ -34,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +58,7 @@ public class CitaService {
     private final ApplicationEventPublisher eventPublisher;
     private final HistoriaClinicaRepository historiaClinicaRepository;
     private final RegistroMedicoRepository registroMedicoRepository;
+    private final com.tuorg.veterinaria.gestionfacturacion.service.FacturaService facturaService;
 
     @Autowired
     public CitaService(CitaRepository citaRepository,
@@ -63,7 +67,8 @@ public class CitaService {
                        NotificacionService notificacionService,
                        ApplicationEventPublisher eventPublisher,
                        HistoriaClinicaRepository historiaClinicaRepository,
-                       RegistroMedicoRepository registroMedicoRepository) {
+                       RegistroMedicoRepository registroMedicoRepository,
+                       com.tuorg.veterinaria.gestionfacturacion.service.FacturaService facturaService) {
         this.citaRepository = citaRepository;
         this.pacienteRepository = pacienteRepository;
         this.usuarioRepository = usuarioRepository;
@@ -71,6 +76,7 @@ public class CitaService {
         this.eventPublisher = eventPublisher;
         this.historiaClinicaRepository = historiaClinicaRepository;
         this.registroMedicoRepository = registroMedicoRepository;
+        this.facturaService = facturaService;
     }
 
     /**
@@ -90,6 +96,28 @@ public class CitaService {
      */
     @Transactional
     public CitaResponse programar(CitaRequest request, Long clienteId) {
+        // **VALIDACIÓN PRIORITARIA: Si es cliente, verificar citas activas PRIMERO**
+        if (clienteId != null) {
+            // Validar que el cliente no tenga citas activas (RESERVADA o PROGRAMADA)
+            boolean tieneReservaPendiente = citaRepository.existsByPaciente_Cliente_IdUsuarioAndEstado(
+                clienteId, AppConstants.ESTADO_CITA_RESERVADA);
+            
+            boolean tieneCitaProgramada = citaRepository.existsByPaciente_Cliente_IdUsuarioAndEstado(
+                clienteId, AppConstants.ESTADO_CITA_PROGRAMADA);
+            
+            if (tieneReservaPendiente) {
+                throw new BusinessException(
+                    "Ya tienes una solicitud de cita pendiente de confirmación. " +
+                    "Si necesitas cambiar la fecha, por favor contacta al secretario para reprogramarla o cancelarla.");
+            }
+            
+            if (tieneCitaProgramada) {
+                throw new BusinessException(
+                    "Ya tienes una cita programada pendiente. " +
+                    "Si necesitas cambiar la fecha, por favor contacta al secretario para reprogramarla o cancelarla.");
+            }
+        }
+        
         Paciente paciente = pacienteRepository.findById(request.getPacienteId())
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente", "id", request.getPacienteId()));
 
@@ -110,30 +138,46 @@ public class CitaService {
 
         LocalDateTime fechaHora = request.getFechaHora();
         
-        // Validar que la fecha no sea en el pasado
+        // 1. Validar que la fecha no sea en el pasado
         if (fechaHora.isBefore(LocalDateTime.now())) {
-            throw new BusinessException("No se puede programar una cita en el pasado");
+            throw new BusinessException("No se puede programar una cita en una fecha pasada. Por favor, seleccione una fecha futura.");
         }
         
-        // Validar anticipación mínima
+        // 2. Validar anticipación mínima
         LocalDateTime anticipacionMinima = LocalDateTime.now().plusHours(AppConstants.ANTICIPACION_MINIMA_HORAS);
         if (fechaHora.isBefore(anticipacionMinima)) {
             throw new BusinessException("Debe agendar la cita con al menos " + 
-                AppConstants.ANTICIPACION_MINIMA_HORAS + " horas de anticipación");
+                AppConstants.ANTICIPACION_MINIMA_HORAS + " horas de anticipación. " +
+                "Por favor, seleccione una fecha y hora posterior.");
         }
         
-        // Validar horario laboral
+        // 3. Validar anticipación máxima (no más de 3 meses adelante)
+        LocalDateTime anticipacionMaxima = LocalDateTime.now().plusDays(AppConstants.ANTICIPACION_MAXIMA_DIAS);
+        if (fechaHora.isAfter(anticipacionMaxima)) {
+            throw new BusinessException("No se pueden agendar citas con más de " + 
+                AppConstants.ANTICIPACION_MAXIMA_DIAS + " días de anticipación. " +
+                "Por favor, contacte directamente a la clínica para citas más lejanas.");
+        }
+        
+        // 4. Validar que los minutos sean múltiplos del intervalo permitido (00 o 30)
+        validarIntervaloHorario(fechaHora);
+        
+        // 5. Validar horario laboral de la clínica
         validarHorarioLaboral(fechaHora);
         
-        // Validar límite de citas por día para el cliente
+        // 6. Validar que el paciente no tenga otra cita programada el mismo día
+        validarCitaDuplicadaPaciente(paciente.getIdPaciente(), fechaHora);
+        
+        // 7. Validar límite de citas por día para el cliente
         Cliente cliente = paciente.getCliente();
         if (cliente != null) {
             validarLimiteCitasPorDia(cliente.getIdUsuario(), fechaHora);
         }
 
-        // Validar disponibilidad considerando la duración de la cita
+        // 8. Validar disponibilidad del veterinario
         if (!validarDisponibilidad(veterinario.getIdUsuario(), fechaHora)) {
-            throw new BusinessException("El veterinario ya tiene una cita programada en ese horario. Por favor, seleccione otra fecha y hora");
+            throw new BusinessException("El veterinario ya tiene una cita programada en ese horario. " +
+                "Por favor, seleccione otra fecha y hora disponible.");
         }
 
         Cita cita = new Cita();
@@ -143,7 +187,14 @@ public class CitaService {
         cita.setTipoServicio(request.getTipoServicio());
         cita.setMotivo(request.getMotivo());
         cita.setTriageNivel(request.getTriageNivel());
-        cita.setEstado(AppConstants.ESTADO_CITA_PROGRAMADA);
+        
+        // Si es un cliente quien crea la cita, queda en estado RESERVADA
+        // Si es secretario/veterinario, queda directamente PROGRAMADA
+        if (clienteId != null) {
+            cita.setEstado(AppConstants.ESTADO_CITA_RESERVADA);
+        } else {
+            cita.setEstado(AppConstants.ESTADO_CITA_PROGRAMADA);
+        }
 
         Cita guardada = citaRepository.save(cita);
         
@@ -189,25 +240,41 @@ public class CitaService {
 
         LocalDateTime nuevaFechaHora = request.getFechaHora();
         
-        // Validar que la fecha no sea en el pasado
+        // 1. Validar que la fecha no sea en el pasado
         if (nuevaFechaHora.isBefore(LocalDateTime.now())) {
-            throw new BusinessException("No se puede reprogramar una cita al pasado");
+            throw new BusinessException("No se puede reprogramar una cita a una fecha pasada. Por favor, seleccione una fecha futura.");
         }
         
-        // Validar anticipación mínima
+        // 2. Validar anticipación mínima
         LocalDateTime anticipacionMinima = LocalDateTime.now().plusHours(AppConstants.ANTICIPACION_MINIMA_HORAS);
         if (nuevaFechaHora.isBefore(anticipacionMinima)) {
             throw new BusinessException("Debe reprogramar la cita con al menos " + 
-                AppConstants.ANTICIPACION_MINIMA_HORAS + " horas de anticipación");
+                AppConstants.ANTICIPACION_MINIMA_HORAS + " horas de anticipación. " +
+                "Por favor, seleccione una fecha y hora posterior.");
         }
         
-        // Validar horario laboral
+        // 3. Validar anticipación máxima
+        LocalDateTime anticipacionMaxima = LocalDateTime.now().plusDays(AppConstants.ANTICIPACION_MAXIMA_DIAS);
+        if (nuevaFechaHora.isAfter(anticipacionMaxima)) {
+            throw new BusinessException("No se pueden reprogramar citas con más de " + 
+                AppConstants.ANTICIPACION_MAXIMA_DIAS + " días de anticipación. " +
+                "Por favor, contacte directamente a la clínica.");
+        }
+        
+        // 4. Validar que los minutos sean múltiplos del intervalo permitido
+        validarIntervaloHorario(nuevaFechaHora);
+        
+        // 5. Validar horario laboral
         validarHorarioLaboral(nuevaFechaHora);
+        
+        // 6. Validar que el paciente no tenga otra cita programada el mismo día (excluyendo la actual)
+        validarCitaDuplicadaPacienteExcluyendo(cita.getPaciente().getIdPaciente(), nuevaFechaHora, cita.getFechaHora());
 
-        // Validar disponibilidad considerando la duración de la cita (excluyendo la cita actual)
+        // 7. Validar disponibilidad del veterinario (excluyendo la cita actual)
         LocalDateTime fechaHoraActual = cita.getFechaHora();
         if (!validarDisponibilidadExcluyendo(cita.getVeterinario().getIdUsuario(), nuevaFechaHora, fechaHoraActual)) {
-            throw new BusinessException("El veterinario ya tiene una cita programada en ese horario. Por favor, seleccione otra fecha y hora");
+            throw new BusinessException("El veterinario ya tiene una cita programada en ese horario. " +
+                "Por favor, seleccione otra fecha y hora disponible.");
         }
 
         LocalDateTime fechaAnterior = cita.getFechaHora();
@@ -275,10 +342,10 @@ public class CitaService {
 
     /**
      * Marca la cita como realizada cuando el servicio concluye.
-     * Crea automáticamente un registro médico básico en la historia clínica del paciente.
+     * Crea automáticamente un registro médico completo en la historia clínica y genera la factura.
      */
     @Transactional
-    public CitaResponse completar(Long citaId) {
+    public CitaResponse completar(Long citaId, CompletarConsultaRequest request) {
         Cita cita = citaRepository.findById(citaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cita", "id", citaId));
 
@@ -289,22 +356,26 @@ public class CitaService {
         cita.setEstado(AppConstants.ESTADO_CITA_REALIZADA);
         Cita completada = citaRepository.save(cita);
 
-        // Crear registro médico automático en la historia clínica
-        crearRegistroMedicoAutomatico(completada);
+        // Crear registro médico completo en la historia clínica
+        if (request != null) {
+            crearRegistroMedicoCompleto(completada, request);
+        } else {
+            crearRegistroMedicoAutomatico(completada);
+        }
+
+        // Generar factura automáticamente basada en el tipo de servicio y medicamentos
+        generarFacturaAutomatica(completada, request);
 
         return mapToResponse(completada);
     }
 
     /**
-     * Crea un registro médico básico cuando se completa una cita.
-     * Este registro puede ser editado posteriormente por el veterinario para agregar más detalles.
+     * Crea un registro médico completo con todos los datos médicos proporcionados por el veterinario.
      */
-    private void crearRegistroMedicoAutomatico(Cita cita) {
-        // Obtener la historia clínica del paciente
+    private void crearRegistroMedicoCompleto(Cita cita, CompletarConsultaRequest request) {
         HistoriaClinica historia = historiaClinicaRepository.findByPacienteId(cita.getPaciente().getIdPaciente())
                 .orElseThrow(() -> new ResourceNotFoundException("HistoriaClinica", "paciente_id", cita.getPaciente().getIdPaciente()));
 
-        // Crear registro médico básico
         RegistroMedico registro = new RegistroMedico();
         registro.setHistoria(historia);
         registro.setFecha(cita.getFechaHora());
@@ -320,13 +391,192 @@ public class CitaService {
         }
         
         registro.setMotivo(motivo);
+        registro.setDiagnostico(request.getDiagnostico());
+        
+        // Construir tratamiento con medicamentos si los hay
+        String tratamiento = request.getTratamiento();
+        if (request.getMedicamentos() != null && !request.getMedicamentos().isEmpty()) {
+            StringBuilder tratamientoCompleto = new StringBuilder(tratamiento);
+            tratamientoCompleto.append("\n\n=== MEDICAMENTOS RECETADOS ===");
+            for (CompletarConsultaRequest.MedicamentoDTO med : request.getMedicamentos()) {
+                tratamientoCompleto.append("\n• ").append(med.getNombre())
+                    .append(" - ").append(med.getDosis())
+                    .append(" cada ").append(med.getFrecuencia())
+                    .append(" por ").append(med.getDuracionDias()).append(" días");
+                if (med.getCosto() != null && med.getCosto().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                    tratamientoCompleto.append(" (Costo: $").append(med.getCosto()).append(")");
+                }
+            }
+            tratamiento = tratamientoCompleto.toString();
+        }
+        registro.setTratamiento(tratamiento);
+        
+        // Inicializar listas vacías para evitar problemas de deserialización
+        registro.setArchivos(new java.util.ArrayList<>());
+        registro.setInsumosUsados(new java.util.ArrayList<>());
+
+        // Agregar signos vitales si fueron proporcionados
+        if (request.getSignosVitales() != null) {
+            CompletarConsultaRequest.SignosVitalesDTO sv = request.getSignosVitales();
+            Map<String, Object> signosVitalesMap = new HashMap<>();
+            
+            if (sv.getPeso() != null) {
+                signosVitalesMap.put("peso", sv.getPeso());
+            }
+            if (sv.getTemperatura() != null) {
+                signosVitalesMap.put("temperatura", sv.getTemperatura());
+            }
+            if (sv.getFrecuenciaCardiaca() != null) {
+                signosVitalesMap.put("frecuenciaCardiaca", sv.getFrecuenciaCardiaca());
+            }
+            if (sv.getFrecuenciaRespiratoria() != null) {
+                signosVitalesMap.put("frecuenciaRespiratoria", sv.getFrecuenciaRespiratoria());
+            }
+            
+            if (!signosVitalesMap.isEmpty()) {
+                // Agregar observaciones al mapa de signos vitales si existen
+                if (request.getObservaciones() != null && !request.getObservaciones().isBlank()) {
+                    signosVitalesMap.put("observaciones", request.getObservaciones());
+                }
+                registro.setSignosVitales(signosVitalesMap);
+            }
+        }
+
+        registroMedicoRepository.save(registro);
+        
+        log.info("Registro médico completo creado para cita ID: {} en historia clínica ID: {}", 
+                 cita.getIdCita(), historia.getIdHistoria());
+    }
+
+    /**
+     * Crea un registro médico básico cuando se completa una cita sin datos médicos.
+     * Este registro puede ser editado posteriormente por el veterinario para agregar más detalles.
+     */
+    private void crearRegistroMedicoAutomatico(Cita cita) {
+        HistoriaClinica historia = historiaClinicaRepository.findByPacienteId(cita.getPaciente().getIdPaciente())
+                .orElseThrow(() -> new ResourceNotFoundException("HistoriaClinica", "paciente_id", cita.getPaciente().getIdPaciente()));
+
+        RegistroMedico registro = new RegistroMedico();
+        registro.setHistoria(historia);
+        registro.setFecha(cita.getFechaHora());
+        registro.setVeterinario(cita.getVeterinario());
+        
+        String motivo = cita.getMotivo() != null && !cita.getMotivo().isBlank() 
+            ? cita.getMotivo() 
+            : "Consulta programada";
+        
+        if (cita.getTipoServicio() != null && !cita.getTipoServicio().isBlank()) {
+            motivo = cita.getTipoServicio() + " - " + motivo;
+        }
+        
+        registro.setMotivo(motivo);
         registro.setDiagnostico("Pendiente de evaluación completa por el veterinario");
         registro.setTratamiento("Por definir");
+        
+        // Inicializar listas vacías para evitar problemas de deserialización
+        registro.setArchivos(new java.util.ArrayList<>());
+        registro.setInsumosUsados(new java.util.ArrayList<>());
 
         registroMedicoRepository.save(registro);
         
         log.info("Registro médico automático creado para cita ID: {} en historia clínica ID: {}", 
                  cita.getIdCita(), historia.getIdHistoria());
+    }
+
+    /**
+     * Genera una factura automáticamente basada en el tipo de servicio de la cita y medicamentos.
+     */
+    private void generarFacturaAutomatica(Cita cita, CompletarConsultaRequest request) {
+        try {
+            // Obtener el cliente del paciente
+            Cliente cliente = cita.getPaciente().getCliente();
+            
+            // Determinar el costo basado en el tipo de servicio
+            java.math.BigDecimal costoServicio = determinarCostoServicio(cita.getTipoServicio());
+            
+            // Agregar costo de medicamentos
+            java.math.BigDecimal costoMedicamentos = java.math.BigDecimal.ZERO;
+            if (request != null && request.getMedicamentos() != null && !request.getMedicamentos().isEmpty()) {
+                for (CompletarConsultaRequest.MedicamentoDTO med : request.getMedicamentos()) {
+                    if (med.getCosto() != null) {
+                        costoMedicamentos = costoMedicamentos.add(med.getCosto());
+                    }
+                }
+            }
+            
+            java.math.BigDecimal costoTotal = costoServicio.add(costoMedicamentos);
+            
+            // Crear contenido de la factura con estructura compatible con frontend
+            Map<String, Object> contenido = new HashMap<>();
+            
+            // Crear array de detalles (servicios facturados)
+            List<Map<String, Object>> detalle = new ArrayList<>();
+            
+            // Agregar el servicio principal
+            Map<String, Object> itemServicio = new HashMap<>();
+            String nombreServicio = cita.getTipoServicio() != null ? cita.getTipoServicio() : "Consulta General";
+            itemServicio.put("servicio", nombreServicio);
+            itemServicio.put("valor", costoServicio);
+            detalle.add(itemServicio);
+            
+            // Agregar medicamentos como items individuales si existen
+            if (request != null && request.getMedicamentos() != null && !request.getMedicamentos().isEmpty()) {
+                for (CompletarConsultaRequest.MedicamentoDTO med : request.getMedicamentos()) {
+                    Map<String, Object> itemMedicamento = new HashMap<>();
+                    String descripcionMed = med.getNombre() + " - " + med.getDosis() + 
+                                          " cada " + med.getFrecuencia() + 
+                                          " por " + med.getDuracionDias() + " días";
+                    itemMedicamento.put("servicio", descripcionMed);
+                    itemMedicamento.put("valor", med.getCosto());
+                    detalle.add(itemMedicamento);
+                }
+            }
+            
+            contenido.put("detalle", detalle);
+            
+            // Información adicional para el PDF
+            contenido.put("paciente", cita.getPaciente().getNombre());
+            String nombreVeterinario = cita.getVeterinario().getNombre() + " " + cita.getVeterinario().getApellido();
+            contenido.put("veterinario", nombreVeterinario);
+            contenido.put("fechaServicio", cita.getFechaHora().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+            contenido.put("motivo", cita.getMotivo());
+            
+            // Crear la factura
+            FacturaRequest facturaRequest = new FacturaRequest();
+            facturaRequest.setClienteId(cliente.getIdUsuario());
+            facturaRequest.setTotal(costoTotal);
+            facturaRequest.setFormaPago("PENDIENTE");
+            facturaRequest.setContenido(contenido);
+            
+            facturaService.crear(facturaRequest);
+            
+            log.info("Factura automática generada para cita ID: {} por valor: {} (Servicio: {} + Medicamentos: {})", 
+                     cita.getIdCita(), costoTotal, costoServicio, costoMedicamentos);
+            
+        } catch (Exception e) {
+            log.error("Error al generar factura automática para cita ID: {}", cita.getIdCita(), e);
+            // No lanzamos excepción para no afectar el completado de la cita
+        }
+    }
+
+    /**
+     * Determina el costo del servicio basado en el tipo.
+     */
+    private java.math.BigDecimal determinarCostoServicio(String tipoServicio) {
+        if (tipoServicio == null || tipoServicio.isBlank()) {
+            return new java.math.BigDecimal("50000"); // Consulta general por defecto
+        }
+        
+        // Mapeo de servicios comunes
+        return switch (tipoServicio.toLowerCase()) {
+            case "consulta general", "consulta" -> new java.math.BigDecimal("50000");
+            case "vacunación", "vacuna" -> new java.math.BigDecimal("35000");
+            case "desparasitación" -> new java.math.BigDecimal("25000");
+            case "cirugía", "cirugia" -> new java.math.BigDecimal("300000");
+            case "laboratorio", "examen" -> new java.math.BigDecimal("80000");
+            case "urgencia", "emergencia" -> new java.math.BigDecimal("100000");
+            default -> new java.math.BigDecimal("50000"); // Por defecto
+        };
     }
 
     /**
@@ -398,25 +648,45 @@ public class CitaService {
 
     /**
      * Valida la disponibilidad de un veterinario en una fecha/hora específica.
-     * Considera un rango de tiempo basado en la duración estándar de las citas.
+     * Verifica que no haya otra cita que se traslape con la nueva cita.
+     * Una cita ocupa el espacio desde su hora de inicio hasta su hora de inicio + duración.
      * 
      * @param veterinarioId ID del veterinario
      * @param fechaHora Fecha y hora a validar
      * @return true si está disponible, false si hay conflicto
      */
     private boolean validarDisponibilidad(Long veterinarioId, LocalDateTime fechaHora) {
-        LocalDateTime inicioRango = fechaHora.minusMinutes(AppConstants.DURACION_CITA_MINUTOS);
-        LocalDateTime finRango = fechaHora.plusMinutes(AppConstants.DURACION_CITA_MINUTOS);
+        // La nueva cita ocuparía el espacio: [fechaHora, fechaHora + DURACION]
+        LocalDateTime finNuevaCita = fechaHora.plusMinutes(AppConstants.DURACION_CITA_MINUTOS);
         
-        return !citaRepository.existeCitaEnRango(
-                veterinarioId,
-                inicioRango,
-                finRango,
-                AppConstants.ESTADO_CITA_PROGRAMADA);
+        // Buscar citas existentes que se traslapen
+        List<Cita> citasVeterinario = citaRepository.findByVeterinarioId(veterinarioId)
+                .stream()
+                .filter(c -> AppConstants.ESTADO_CITA_PROGRAMADA.equals(c.getEstado()))
+                .toList();
+        
+        for (Cita citaExistente : citasVeterinario) {
+            LocalDateTime inicioCitaExistente = citaExistente.getFechaHora();
+            LocalDateTime finCitaExistente = inicioCitaExistente.plusMinutes(AppConstants.DURACION_CITA_MINUTOS);
+            
+            // Verificar si hay traslape:
+            // Hay traslape si la nueva cita inicia antes de que termine la existente
+            // Y la nueva cita termina después de que inicie la existente
+            boolean hayTraslape = 
+                fechaHora.isBefore(finCitaExistente) && 
+                finNuevaCita.isAfter(inicioCitaExistente);
+            
+            if (hayTraslape) {
+                return false; // No está disponible
+            }
+        }
+        
+        return true; // Está disponible
     }
 
     /**
      * Valida la disponibilidad excluyendo una cita específica (útil para reprogramar).
+     * Verifica que no haya otra cita que se traslape, excluyendo la cita que se está reprogramando.
      * 
      * @param veterinarioId ID del veterinario
      * @param nuevaFechaHora Nueva fecha y hora a validar
@@ -429,24 +699,115 @@ public class CitaService {
             return true;
         }
         
-        // Verificar si hay otras citas en el rango (excluyendo la cita actual)
-        LocalDateTime inicioRango = nuevaFechaHora.minusMinutes(AppConstants.DURACION_CITA_MINUTOS);
-        LocalDateTime finRango = nuevaFechaHora.plusMinutes(AppConstants.DURACION_CITA_MINUTOS);
+        // La nueva cita ocuparía el espacio: [nuevaFechaHora, nuevaFechaHora + DURACION]
+        LocalDateTime finNuevaCita = nuevaFechaHora.plusMinutes(AppConstants.DURACION_CITA_MINUTOS);
         
-        // Obtener todas las citas en el rango
-        List<Cita> citasEnRango = citaRepository.findByVeterinarioId(veterinarioId)
+        // Buscar citas existentes que se traslapen (excluyendo la cita actual)
+        List<Cita> citasVeterinario = citaRepository.findByVeterinarioId(veterinarioId)
                 .stream()
                 .filter(c -> AppConstants.ESTADO_CITA_PROGRAMADA.equals(c.getEstado()))
-                .filter(c -> {
-                    LocalDateTime cFecha = c.getFechaHora();
-                    return cFecha.isAfter(inicioRango) && cFecha.isBefore(finRango);
-                })
-                .filter(c -> !c.getFechaHora().equals(fechaHoraExcluir)) // Excluir la cita actual
+                .filter(c -> !c.getFechaHora().equals(fechaHoraExcluir)) // Excluir la cita que se está reprogramando
                 .toList();
         
-        return citasEnRango.isEmpty();
+        for (Cita citaExistente : citasVeterinario) {
+            LocalDateTime inicioCitaExistente = citaExistente.getFechaHora();
+            LocalDateTime finCitaExistente = inicioCitaExistente.plusMinutes(AppConstants.DURACION_CITA_MINUTOS);
+            
+            // Verificar si hay traslape
+            boolean hayTraslape = 
+                nuevaFechaHora.isBefore(finCitaExistente) && 
+                finNuevaCita.isAfter(inicioCitaExistente);
+            
+            if (hayTraslape) {
+                return false; // No está disponible
+            }
+        }
+        
+        return true; // Está disponible
     }
     
+    /**
+     * Valida que la hora esté en intervalos permitidos (00 o 30 minutos).
+     * 
+     * @param fechaHora Fecha y hora a validar
+     * @throws BusinessException si los minutos no son 00 o 30
+     */
+    private void validarIntervaloHorario(LocalDateTime fechaHora) {
+        int minutos = fechaHora.getMinute();
+        if (minutos % AppConstants.INTERVALO_CITAS_MINUTOS != 0) {
+            throw new BusinessException(
+                "Las citas solo se pueden agendar en intervalos de " + 
+                AppConstants.INTERVALO_CITAS_MINUTOS + " minutos. " +
+                "Por favor, seleccione una hora como 8:00, 8:30, 9:00, 9:30, etc."
+            );
+        }
+    }
+    
+    /**
+     * Valida que el paciente no tenga otra cita programada el mismo día.
+     * Evita que se agenden múltiples citas para el mismo paciente en un día.
+     * 
+     * @param pacienteId ID del paciente
+     * @param fechaHora Fecha de la nueva cita
+     * @throws BusinessException si el paciente ya tiene una cita ese día
+     */
+    private void validarCitaDuplicadaPaciente(Long pacienteId, LocalDateTime fechaHora) {
+        LocalDateTime inicioDia = fechaHora.toLocalDate().atStartOfDay();
+        LocalDateTime finDia = fechaHora.toLocalDate().atTime(23, 59, 59);
+        
+        boolean tieneCitaHoy = citaRepository.findAll()
+                .stream()
+                .filter(c -> c.getPaciente() != null && c.getPaciente().getIdPaciente().equals(pacienteId))
+                .filter(c -> AppConstants.ESTADO_CITA_PROGRAMADA.equals(c.getEstado()))
+                .anyMatch(c -> {
+                    LocalDateTime cf = c.getFechaHora();
+                    return !cf.isBefore(inicioDia) && !cf.isAfter(finDia);
+                });
+        
+        if (tieneCitaHoy) {
+            throw new BusinessException(
+                "El paciente ya tiene una cita programada para este día. " +
+                "Por favor, seleccione otra fecha o cancele la cita existente."
+            );
+        }
+    }
+    
+    /**
+     * Valida que el paciente no tenga otra cita programada el mismo día, excluyendo una cita específica.
+     * Útil para reprogramar citas.
+     * 
+     * @param pacienteId ID del paciente
+     * @param nuevaFechaHora Nueva fecha de la cita
+     * @param fechaHoraExcluir Fecha de la cita a excluir de la validación
+     * @throws BusinessException si el paciente ya tiene otra cita ese día
+     */
+    private void validarCitaDuplicadaPacienteExcluyendo(Long pacienteId, LocalDateTime nuevaFechaHora, LocalDateTime fechaHoraExcluir) {
+        // Si la nueva fecha es el mismo día que la fecha actual, no hay problema
+        if (nuevaFechaHora.toLocalDate().equals(fechaHoraExcluir.toLocalDate())) {
+            return;
+        }
+        
+        LocalDateTime inicioDia = nuevaFechaHora.toLocalDate().atStartOfDay();
+        LocalDateTime finDia = nuevaFechaHora.toLocalDate().atTime(23, 59, 59);
+        
+        boolean tieneCitaHoy = citaRepository.findAll()
+                .stream()
+                .filter(c -> c.getPaciente() != null && c.getPaciente().getIdPaciente().equals(pacienteId))
+                .filter(c -> AppConstants.ESTADO_CITA_PROGRAMADA.equals(c.getEstado()))
+                .filter(c -> !c.getFechaHora().equals(fechaHoraExcluir)) // Excluir la cita actual
+                .anyMatch(c -> {
+                    LocalDateTime cf = c.getFechaHora();
+                    return !cf.isBefore(inicioDia) && !cf.isAfter(finDia);
+                });
+        
+        if (tieneCitaHoy) {
+            throw new BusinessException(
+                "El paciente ya tiene otra cita programada para este día. " +
+                "Por favor, seleccione otra fecha o cancele la cita existente primero."
+            );
+        }
+    }
+
     /**
      * Valida que la fecha/hora esté dentro del horario laboral de la clínica.
      * - Lunes a Viernes: 8:00-12:00 y 14:00-18:00
@@ -881,6 +1242,53 @@ public class CitaService {
                 horarios.add(horarioResponse);
             }
         }
+    }
+
+    /**
+     * Confirma una reserva de cita (cambia de RESERVADA a PROGRAMADA).
+     * Solo el secretario puede confirmar reservas.
+     * 
+     * @param citaId ID de la cita
+     * @return Cita confirmada
+     */
+    @Transactional
+    public CitaResponse confirmarReserva(Long citaId) {
+        Cita cita = citaRepository.findById(citaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cita", "id", citaId));
+        
+        if (!AppConstants.ESTADO_CITA_RESERVADA.equals(cita.getEstado())) {
+            throw new BusinessException("Solo se pueden confirmar citas en estado RESERVADA");
+        }
+        
+        cita.setEstado(AppConstants.ESTADO_CITA_PROGRAMADA);
+        Cita guardada = citaRepository.save(cita);
+        
+        // Notificar al cliente que su reserva fue confirmada
+        publicarEventoCitaCreada(guardada);
+        
+        return mapToResponse(guardada);
+    }
+
+    /**
+     * Rechaza una reserva de cita (la cancela y libera el espacio).
+     * Solo el secretario puede rechazar reservas.
+     * 
+     * @param citaId ID de la cita
+     * @return Cita rechazada
+     */
+    @Transactional
+    public CitaResponse rechazarReserva(Long citaId) {
+        Cita cita = citaRepository.findById(citaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cita", "id", citaId));
+        
+        if (!AppConstants.ESTADO_CITA_RESERVADA.equals(cita.getEstado())) {
+            throw new BusinessException("Solo se pueden rechazar citas en estado RESERVADA");
+        }
+        
+        cita.setEstado(AppConstants.ESTADO_CITA_CANCELADA);
+        Cita guardada = citaRepository.save(cita);
+        
+        return mapToResponse(guardada);
     }
 }
 

@@ -112,9 +112,19 @@ export const CitasRepository = {
     return unwrapResponse(data);
   },
 
-  completar: async (citaId: number): Promise<ApiCitaResponse> => {
+  completar: async (citaId: number, datosConsulta?: {
+    diagnostico: string;
+    tratamiento: string;
+    signosVitales?: {
+      peso?: number;
+      temperatura?: number;
+      frecuenciaCardiaca?: number;
+      frecuenciaRespiratoria?: number;
+    };
+    observaciones?: string;
+  }): Promise<ApiCitaResponse> => {
     const client = getApiClient();
-    const { data } = await client.put<ApiResponse<ApiCitaResponse>>(`${BASE_PATH}/${citaId}/completar`, {});
+    const { data } = await client.put<ApiResponse<ApiCitaResponse>>(`${BASE_PATH}/${citaId}/completar`, datosConsulta || {});
     return unwrapResponse(data);
   },
 

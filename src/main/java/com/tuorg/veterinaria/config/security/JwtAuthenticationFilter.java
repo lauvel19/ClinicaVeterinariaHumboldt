@@ -67,7 +67,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String servletPath = request.getServletPath(); // Esto devuelve la ruta sin el context-path
         
         // Verificar si es una ruta pública (sin /api porque el context-path ya lo incluye)
-        if (servletPath.startsWith("/auth/") || servletPath.startsWith("/configuracion/parametros/")) {
+        if (servletPath.startsWith("/auth/") || 
+            servletPath.startsWith("/configuracion/parametros/") ||
+            servletPath.equals("/health") ||
+            servletPath.equals("/ping") ||
+            servletPath.equals("/error")) {
             filterChain.doFilter(request, response);
             return;
         }

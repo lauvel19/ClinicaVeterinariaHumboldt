@@ -56,12 +56,15 @@ public class HistoriaClinicaController {
 
     /**
      * Agrega un registro médico a una historia clínica.
+     * DESHABILITADO: Los registros se crean automáticamente al completar consultas.
+     * Solo ADMIN puede agregar registros manualmente en casos excepcionales.
      * 
      * @param historiaId ID de la historia clínica
      * @param registro Registro médico a agregar
      * @return Respuesta con el registro médico creado
      */
     @PostMapping("/{historiaId}/registros")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<RegistroMedicoResponse>> agregarRegistro(
             @PathVariable Long historiaId,
             @Valid @RequestBody RegistroMedicoRequest request) {
@@ -85,14 +88,15 @@ public class HistoriaClinicaController {
 
     /**
      * Actualiza un registro médico existente.
-     * Solo accesible por veterinarios.
+     * RESTRINGIDO: Solo ADMIN puede editar registros médicos históricos para corregir errores.
+     * Los registros médicos deben ser inmutables una vez creados por razones legales.
      * 
      * @param registroId ID del registro médico
      * @param request Datos actualizados del registro
      * @return Respuesta con el registro actualizado
      */
     @PutMapping("/registros/{registroId}")
-    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('VETERINARIO', 'ADMIN')")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<RegistroMedicoResponse>> actualizarRegistro(
             @PathVariable Long registroId,
             @Valid @RequestBody RegistroMedicoRequest request) {

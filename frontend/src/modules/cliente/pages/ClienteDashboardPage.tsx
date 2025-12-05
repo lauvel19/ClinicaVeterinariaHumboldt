@@ -5,6 +5,7 @@ import { authStore } from "../../../shared/state/authStore";
 import { getApiClient } from "../../../shared/api/ApiClient";
 import { unwrapResponse } from "../../../shared/api/ApiResponseAdapter";
 import type { ApiResponse } from "../../../shared/api/types";
+import { CreateCitaModal } from "../../citas/components/CreateCitaModal";
 
 interface Paciente {
   idPaciente: number;
@@ -39,33 +40,63 @@ interface Cita {
 export const ClienteDashboardPage = () => {
   const user = authStore((state) => state.user);
   const [activeTab, setActiveTab] = useState<"citas" | "mascotas">("citas");
+  const [isCreateCitaModalOpen, setIsCreateCitaModalOpen] = useState(false);
 
   // Obtener mascotas del cliente
   const { data: mascotas = [], isLoading: loadingMascotas } = useQuery({
     queryKey: ["pacientes-cliente", user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
-      const client = getApiClient();
-      const { data } = await client.get<ApiResponse<Paciente[]>>(`/pacientes/cliente/${user.id}`);
-      return unwrapResponse(data);
+      if (!user?.id) {
+        console.warn("❌ No se puede cargar pacientes: user.id es undefined");
+        return [];
+      }
+      try {
+        const client = getApiClient();
+        const { data } = await client.get<ApiResponse<Paciente[]>>(`/pacientes/cliente/${user.id}`);
+        return unwrapResponse(data);
+      } catch (error) {
+        console.error("Error cargando pacientes del cliente:", error);
+        return [];
+      }
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && typeof user.id === 'number',
+    retry: false,
+    staleTime: 30000,
   });
+
+  // Filtrar mascotas válidas (con idPaciente definido)
+  const mascotasValidas = mascotas.filter(m => m.idPaciente && typeof m.idPaciente === 'number');
 
   // Obtener citas de todas las mascotas del cliente
   const { data: todasCitas = [], isLoading: loadingCitas } = useQuery({
-    queryKey: ["citas-cliente", mascotas.map(m => m.idPaciente)],
+    queryKey: ["citas-cliente", mascotasValidas.map(m => m.idPaciente)],
     queryFn: async () => {
-      if (mascotas.length === 0) return [];
-      const client = getApiClient();
-      const promesas = mascotas.map(mascota =>
-        client.get<ApiResponse<Cita[]>>(`/citas/paciente/${mascota.idPaciente}`)
-          .then(({ data }) => unwrapResponse(data))
-      );
-      const resultados = await Promise.all(promesas);
-      return resultados.flat();
+      if (mascotasValidas.length === 0) {
+        console.warn("⚠️ No hay mascotas válidas para cargar citas");
+        return [];
+      }
+      try {
+        const client = getApiClient();
+        const promesas = mascotasValidas
+          .filter(mascota => mascota.idPaciente !== undefined)
+          .map(mascota =>
+            client.get<ApiResponse<Cita[]>>(`/citas/paciente/${mascota.idPaciente}`)
+              .then(({ data }) => unwrapResponse(data))
+              .catch((error) => {
+                console.error(`Error cargando citas del paciente ${mascota.idPaciente}:`, error);
+                return [];
+              })
+          );
+        const resultados = await Promise.all(promesas);
+        return resultados.flat();
+      } catch (error) {
+        console.error("Error cargando citas:", error);
+        return [];
+      }
     },
-    enabled: mascotas.length > 0,
+    enabled: mascotasValidas.length > 0,
+    retry: false,
+    staleTime: 30000,
   });
 
   const citasProgramadas = todasCitas.filter(c => c.estado === "PROGRAMADA");
@@ -78,7 +109,7 @@ export const ClienteDashboardPage = () => {
       toast.error("Debes tener al menos una mascota registrada. Contacta al veterinario o administrador para registrarla.");
       return;
     }
-    toast.info("Funcionalidad en desarrollo. Por favor, contacta a la recepción para agendar tu cita.");
+    setIsCreateCitaModalOpen(true);
   };
 
   return (
@@ -306,6 +337,13 @@ export const ClienteDashboardPage = () => {
           )}
         </div>
       </div>
+
+      {/* Modal para crear cita */}
+      <CreateCitaModal
+        isOpen={isCreateCitaModalOpen}
+        onClose={() => setIsCreateCitaModalOpen(false)}
+        initialDate={undefined}
+      />
     </div>
   );
 };

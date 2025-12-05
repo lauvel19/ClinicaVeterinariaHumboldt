@@ -166,7 +166,23 @@ export const LoginPage = () => {
       </section>
 
       {/* Panel derecho - Formulario moderno */}
-      <section className="flex w-full lg:w-1/2 items-center justify-center bg-white px-8 py-12 lg:px-20">
+      <section className="flex w-full lg:w-1/2 items-center justify-center bg-white px-8 py-12 lg:px-20 relative">
+        {/* Botón volver a la landing page - Posición absoluta arriba a la izquierda */}
+        <button
+          onClick={() => navigate('/')}
+          className="absolute top-6 left-6 group flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg transition-all duration-200 hover:bg-primary hover:text-white shadow-sm hover:shadow-md"
+        >
+          <svg 
+            className="w-5 h-5 transition-transform duration-200 group-hover:-translate-x-1" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span>Inicio</span>
+        </button>
+
         <div className="w-full max-w-md space-y-10">
           {/* Logo visible en móvil */}
           <div className="flex justify-center lg:hidden mb-6">

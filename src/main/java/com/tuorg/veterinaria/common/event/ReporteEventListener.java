@@ -1,6 +1,7 @@
 package com.tuorg.veterinaria.common.event;
 
-import com.tuorg.veterinaria.configuracion.service.LogSistemaService;
+// TODO: Reactivar cuando se implemente LogSistemaService
+// import com.tuorg.veterinaria.configuracion.service.LogSistemaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,11 +23,12 @@ public class ReporteEventListener {
 
     private static final Logger logger = LoggerFactory.getLogger(ReporteEventListener.class);
 
-    private final LogSistemaService logSistemaService;
+    // TODO: Reactivar cuando se implemente LogSistemaService
+    // private final LogSistemaService logSistemaService;
 
     @Autowired
-    public ReporteEventListener(LogSistemaService logSistemaService) {
-        this.logSistemaService = logSistemaService;
+    public ReporteEventListener(/* LogSistemaService logSistemaService */) {
+        // this.logSistemaService = logSistemaService;
     }
 
     /**
@@ -40,8 +42,9 @@ public class ReporteEventListener {
         logger.info("Evento de reporte generado recibido: {} - ID: {}", 
                 event.getTipoReporte(), event.getReporte().getIdReporte());
         
+        // TODO: Reactivar cuando se implemente LogSistemaService
         // Registrar en log del sistema
-        logSistemaService.registrarEvento(
+        /* logSistemaService.registrarEvento(
                 "ReporteService",
                 "INFO",
                 String.format("Reporte generado: %s (Tipo: %s, ID: %d, Generado por: %s)",
@@ -49,7 +52,7 @@ public class ReporteEventListener {
                         event.getTipoReporte(),
                         event.getReporte().getIdReporte(),
                         event.getReporte().getGeneradoPor())
-        );
+        ); */
         
         // Aquí se pueden agregar más acciones automáticas:
         // - Enviar notificación al usuario que generó el reporte

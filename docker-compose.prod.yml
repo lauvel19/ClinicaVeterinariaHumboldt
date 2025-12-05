@@ -1,0 +1,142 @@
+# ============================================
+# DOCKER COMPOSE - PRODUCCIÓN
+# ============================================
+# Configuración optimizada para producción
+# Con variables de entorno desde archivo .env
+# ============================================
+# Ejecutar: docker-compose -f docker-compose.prod.yml up -d --build
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # BASE DE DATOS POSTGRESQL
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: veterinaria-db-prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-veterinaria_db}
+      POSTGRES_USER: ${POSTGRES_USER:-vet_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password is required}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - veterinaria-prod-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vet_admin} -d ${POSTGRES_DB:-veterinaria_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ============================================
+  # BACKEND - SPRING BOOT
+  # ============================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: veterinaria-backend-prod
+    restart: always
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-veterinaria_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-vet_admin}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Database password is required}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_FLYWAY_ENABLED: "true"
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?JWT secret is required}
+      APP_JWT_EXPIRATION: ${APP_JWT_EXPIRATION:-86400000}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost}
+      GMAIL_USERNAME: ${GMAIL_USERNAME:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      JAVA_OPTS: "-Xms512m -Xmx1024m -XX:+UseG1GC"
+      TZ: ${TZ:-America/Bogota}
+    networks:
+      - veterinaria-prod-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    volumes:
+      - backend_prod_uploads:/app/uploads
+      - backend_prod_logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1.5G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ============================================
+  # FRONTEND - REACT + NGINX
+  # ============================================
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    container_name: veterinaria-frontend-prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - veterinaria-prod-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+# ============================================
+# REDES
+# ============================================
+networks:
+  veterinaria-prod-network:
+    driver: bridge
+    name: veterinaria-prod-network
+
+# ============================================
+# VOLÚMENES
+# ============================================
+volumes:
+  postgres_prod_data:
+    name: veterinaria-postgres-prod-data
+  backend_prod_uploads:
+    name: veterinaria-prod-uploads
+  backend_prod_logs:
+    name: veterinaria-prod-logs

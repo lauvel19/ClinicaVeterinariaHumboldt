@@ -50,7 +50,12 @@ public final class AppConstants {
     // ==================== Estados de Citas ====================
 
     /**
-     * Estado de cita: Programada.
+     * Estado de cita: Reservada (solicitada por cliente, pendiente de confirmación).
+     */
+    public static final String ESTADO_CITA_RESERVADA = "RESERVADA";
+
+    /**
+     * Estado de cita: Programada (confirmada por secretario).
      */
     public static final String ESTADO_CITA_PROGRAMADA = "PROGRAMADA";
 
@@ -95,6 +100,16 @@ public final class AppConstants {
      * Tiempo mínimo de anticipación para agendar/cancelar una cita (en horas).
      */
     public static final int ANTICIPACION_MINIMA_HORAS = 2;
+
+    /**
+     * Tiempo máximo de anticipación para agendar una cita (en días).
+     */
+    public static final int ANTICIPACION_MAXIMA_DIAS = 90;
+
+    /**
+     * Intervalo de minutos permitido para agendar citas (ej: 30 = solo :00 y :30).
+     */
+    public static final int INTERVALO_CITAS_MINUTOS = 30;
 
     /**
      * Hora de inicio del horario laboral - mañana (formato 24 horas).

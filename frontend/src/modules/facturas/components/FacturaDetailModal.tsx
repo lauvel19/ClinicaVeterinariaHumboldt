@@ -5,8 +5,8 @@ import "dayjs/locale/es";
 import toast from "react-hot-toast";
 
 import { FacturasRepository, type FacturaPagoRequest } from "../services/FacturasRepository";
-import { PagoOnlineModal } from "./PagoOnlineModal";
 import type { ApiFacturaResponse } from "../../shared/types/backend";
+import { authStore } from "../../../shared/state/authStore";
 
 dayjs.locale("es");
 
@@ -19,8 +19,14 @@ interface FacturaDetailModalProps {
 export const FacturaDetailModal = ({ isOpen, facturaId, onClose }: FacturaDetailModalProps) => {
   const queryClient = useQueryClient();
   const [isPagoModalOpen, setIsPagoModalOpen] = useState(false);
-  const [isPagoOnlineModalOpen, setIsPagoOnlineModalOpen] = useState(false);
   const [formaPago, setFormaPago] = useState("");
+  
+  // Obtener el usuario actual y su rol
+  const user = authStore((state) => state.user);
+  const userRole = user?.rol?.toUpperCase() || "";
+  
+  // Solo VETERINARIO y ADMIN pueden anular facturas
+  const canAnularFactura = userRole === "VETERINARIO" || userRole === "ADMIN";
 
   const { data: factura, isLoading } = useQuery({
     queryKey: ["factura", facturaId],
@@ -157,14 +163,56 @@ export const FacturaDetailModal = ({ isOpen, facturaId, onClose }: FacturaDetail
             </div>
           )}
 
-          {factura.contenido && (
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <p className="mb-2 text-sm font-semibold text-secondary">Contenido</p>
-              <pre className="text-xs text-gray-600 overflow-auto">
-                {JSON.stringify(factura.contenido, null, 2)}
-              </pre>
-            </div>
-          )}
+          {factura.contenido && (() => {
+            try {
+              const contenido = typeof factura.contenido === 'string' 
+                ? JSON.parse(factura.contenido) 
+                : factura.contenido;
+              
+              const detalles = contenido?.detalle || [];
+              
+              return (
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="mb-3 text-sm font-semibold text-secondary">Servicios Facturados</p>
+                  {detalles.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-300">
+                            <th className="pb-2 text-left font-semibold text-gray-700">Servicio</th>
+                            <th className="pb-2 text-right font-semibold text-gray-700">Valor</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detalles.map((item: any, idx: number) => (
+                            <tr key={idx} className="border-b border-gray-200 last:border-0">
+                              <td className="py-2 text-gray-600">{item.servicio || 'N/A'}</td>
+                              <td className="py-2 text-right font-medium text-gray-800">
+                                {typeof item.valor === 'number' 
+                                  ? item.valor.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })
+                                  : 'N/A'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">No hay detalles disponibles</p>
+                  )}
+                </div>
+              );
+            } catch (error) {
+              return (
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="mb-2 text-sm font-semibold text-secondary">Contenido</p>
+                  <pre className="text-xs text-gray-600 overflow-auto">
+                    {JSON.stringify(factura.contenido, null, 2)}
+                  </pre>
+                </div>
+              );
+            }
+          })()}
 
           <div className="flex flex-wrap gap-3 pt-4">
             <button
@@ -176,46 +224,28 @@ export const FacturaDetailModal = ({ isOpen, facturaId, onClose }: FacturaDetail
             {factura.estado === "PENDIENTE" && (
               <>
                 <button
-                  onClick={() => setIsPagoOnlineModalOpen(true)}
-                  className="rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-soft transition-base hover:bg-primary-dark"
-                >
-                  💳 Pagar Online
-                </button>
-                <button
                   onClick={() => setIsPagoModalOpen(true)}
                   className="rounded-2xl bg-success px-4 py-2 text-sm font-semibold text-white shadow-soft transition-base hover:bg-success/90"
                 >
                   Registrar Pago
                 </button>
-                <button
-                  onClick={() => {
-                    if (confirm("¿Está seguro de anular esta factura?")) {
-                      anularMutation.mutate();
-                    }
-                  }}
-                  disabled={anularMutation.isPending}
-                  className="rounded-2xl border border-danger bg-danger/10 px-4 py-2 text-sm font-semibold text-danger transition-base hover:bg-danger/20 disabled:opacity-50"
-                >
-                  {anularMutation.isPending ? "Anulando..." : "Anular Factura"}
-                </button>
+                {canAnularFactura && (
+                  <button
+                    onClick={() => {
+                      if (confirm("¿Está seguro de anular esta factura?")) {
+                        anularMutation.mutate();
+                      }
+                    }}
+                    disabled={anularMutation.isPending}
+                    className="rounded-2xl border border-danger bg-danger/10 px-4 py-2 text-sm font-semibold text-danger transition-base hover:bg-danger/20 disabled:opacity-50"
+                  >
+                    {anularMutation.isPending ? "Anulando..." : "Anular Factura"}
+                  </button>
+                )}
               </>
             )}
           </div>
         </div>
-
-        {/* Modal de pago online */}
-        {factura && (
-          <PagoOnlineModal
-            isOpen={isPagoOnlineModalOpen}
-            facturaId={factura.idFactura}
-            numeroFactura={factura.numero}
-            montoTotal={factura.total}
-            nombreCliente={factura.cliente?.nombreCompleto}
-            emailCliente={factura.cliente?.correo}
-            telefonoCliente={factura.cliente?.telefono}
-            onClose={() => setIsPagoOnlineModalOpen(false)}
-          />
-        )}
 
         {/* Modal de pago */}
         {isPagoModalOpen && (

@@ -8,6 +8,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -95,6 +97,7 @@ public class Factura extends Auditable {
      * Contenido de la factura en formato JSON.
      * Incluye detalles de servicios, impuestos, descuentos, etc.
      */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "contenido", columnDefinition = "JSONB")
     private String contenido;
 }

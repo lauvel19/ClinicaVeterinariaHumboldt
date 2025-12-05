@@ -5,12 +5,11 @@ import dayjs from "dayjs";
 import toast from "react-hot-toast";
 
 import { CitasRepository, type CitaReprogramarRequest, type CitaCancelarRequest } from "../services/CitasRepository";
-import { CreateServicioPrestadoModal } from "../../consultas/components/CreateServicioPrestadoModal";
+import { CompletarConsultaModal } from "./CompletarConsultaModal";
 import { CreateFacturaModal } from "../../facturas/components/CreateFacturaModal";
 import { ConsultasRepository } from "../../consultas/services/ConsultasRepository";
 import { PacientesRepository } from "../../pacientes/services/PacientesRepository";
 import type { ApiCitaResponse } from "../../shared/types/backend";
-import { FullscreenLoader } from "../../../app/components/feedback/FullscreenLoader";
 import { authStore } from "../../../shared/state/authStore";
 
 interface CitaDetailModalProps {
@@ -52,7 +51,7 @@ export const CitaDetailModal = ({ isOpen, cita, onClose }: CitaDetailModalProps)
 
   // Calcular el total de los servicios prestados
   const totalServicios = serviciosPrestados?.reduce(
-    (sum, servicio) => sum + parseFloat(servicio.costoTotal),
+    (sum, servicio) => sum + Number.parseFloat(servicio.costoTotal),
     0
   ) || 0;
 
@@ -60,11 +59,11 @@ export const CitaDetailModal = ({ isOpen, cita, onClose }: CitaDetailModalProps)
     setIsGenerandoResumen(true);
     try {
       const resumen = await ConsultasRepository.generarResumen(servicioId);
-      const modal = window.open("", "_blank");
+      const modal = globalThis.open("", "_blank");
       if (modal) {
-        modal.document.write(`
+        const htmlContent = `
           <!DOCTYPE html>
-          <html>
+          <html lang="es">
             <head>
               <title>Resumen de Servicio</title>
               <style>
@@ -80,11 +79,14 @@ export const CitaDetailModal = ({ isOpen, cita, onClose }: CitaDetailModalProps)
               <pre>${resumen}</pre>
             </body>
           </html>
-        `);
+        `;
+        modal.document.open();
+        modal.document.write(htmlContent);
         modal.document.close();
       }
       toast.success("Resumen generado exitosamente");
     } catch (error) {
+      console.error("Error al generar resumen:", error);
       toast.error("Error al generar el resumen");
     } finally {
       setIsGenerandoResumen(false);
@@ -100,19 +102,6 @@ export const CitaDetailModal = ({ isOpen, cita, onClose }: CitaDetailModalProps)
 
   const { register: registerCancelar, handleSubmit: handleSubmitCancelar, reset: resetCancelar } =
     useForm<CancelarFormData>();
-
-  const completarMutation = useMutation({
-    mutationFn: (citaId: number) => CitasRepository.completar(citaId),
-    onSuccess: () => {
-      toast.success("Cita completada exitosamente");
-      queryClient.invalidateQueries({ queryKey: ["citas-veterinario"] });
-      queryClient.invalidateQueries({ queryKey: ["veterinarian-dashboard"] });
-      onClose();
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Error al completar la cita");
-    },
-  });
 
   const reprogramarMutation = useMutation({
     mutationFn: ({ citaId, request }: { citaId: number; request: CitaReprogramarRequest }) =>
@@ -161,22 +150,108 @@ export const CitaDetailModal = ({ isOpen, cita, onClose }: CitaDetailModalProps)
     });
   };
 
-  const handleCompletar = () => {
-    if (!cita) return;
-    if (confirm("¿Está seguro de que desea marcar esta cita como completada?")) {
-      completarMutation.mutate(cita.idCita);
-    }
+  const getEstadoTone = (estado: string) => {
+    if (estado === "REALIZADA") return "bg-success/20 text-success";
+    if (estado === "CANCELADA") return "bg-danger/20 text-danger";
+    return "bg-warning/20 text-warning";
+  };
+
+  const getEstadoTexto = (estado: string) => {
+    if (estado === "REALIZADA") return "Completada";
+    if (estado === "CANCELADA") return "Cancelada";
+    return "Programada";
   };
 
   if (!isOpen || !cita) return null;
 
   const fecha = dayjs(cita.fechaHora);
-  const estadoTone =
-    cita.estado === "REALIZADA"
-      ? "bg-success/20 text-success"
-      : cita.estado === "CANCELADA"
-        ? "bg-danger/20 text-danger"
-        : "bg-warning/20 text-warning";
+  const estadoTone = getEstadoTone(cita.estado);
+
+  // Helper para renderizar el contenido según el estado de la cita
+  const renderEstadoMessage = () => {
+    if (cita.estado === "PROGRAMADA") return null;
+
+    const message = cita.estado === "REALIZADA"
+      ? "Esta cita ya fue marcada como atendida."
+      : "Esta cita fue cancelada.";
+
+    return <p className="w-full text-center text-sm text-gray-500">{message}</p>;
+  };
+
+  // Helper para renderizar el formulario según la acción
+  const renderFormulario = () => {
+    if (action === "reprogramar") {
+      return (
+        <form onSubmit={handleSubmitReprogramar(onReprogramar)} className="space-y-4">
+          <div>
+            <label htmlFor="nuevaFechaHora" className="mb-1 block text-sm font-medium text-gray-700">
+              Nueva Fecha y Hora <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="nuevaFechaHora"
+              type="datetime-local"
+              {...registerReprogramar("nuevaFechaHora", { required: "La nueva fecha es obligatoria" })}
+              min={dayjs().format("YYYY-MM-DDTHH:mm")}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setAction("view")}
+              className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={reprogramarMutation.isPending}
+              className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-all hover:bg-primary/90 disabled:opacity-50"
+            >
+              {reprogramarMutation.isPending ? "Reprogramando..." : "Confirmar Reprogramación"}
+            </button>
+          </div>
+        </form>
+      );
+    }
+
+    if (action === "cancelar") {
+      return (
+        <form onSubmit={handleSubmitCancelar(onCancelar)} className="space-y-4">
+          <div>
+            <label htmlFor="motivoCancelacion" className="mb-1 block text-sm font-medium text-gray-700">
+              Motivo de Cancelación <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="motivoCancelacion"
+              {...registerCancelar("motivoCancelacion", { required: "El motivo es obligatorio" })}
+              rows={4}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="Describe el motivo de la cancelación..."
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setAction("view")}
+              className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={cancelarMutation.isPending}
+              className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"
+            >
+              {cancelarMutation.isPending ? "Cancelando..." : "Confirmar Cancelación"}
+            </button>
+          </div>
+        </form>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -192,9 +267,11 @@ export const CitaDetailModal = ({ isOpen, cita, onClose }: CitaDetailModalProps)
                 setAction("view");
                 onClose();
               }}
-              className="rounded-lg p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600"
+              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
-              ✕
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
         </div>
@@ -208,7 +285,7 @@ export const CitaDetailModal = ({ isOpen, cita, onClose }: CitaDetailModalProps)
                   <div>
                     <p className="text-xs font-medium text-gray-500">Estado</p>
                     <span className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-semibold ${estadoTone}`}>
-                      {cita.estado === "REALIZADA" ? "Completada" : cita.estado === "CANCELADA" ? "Cancelada" : "Programada"}
+                      {getEstadoTexto(cita.estado)}
                     </span>
                   </div>
                   <div className="text-right">
@@ -254,192 +331,98 @@ export const CitaDetailModal = ({ isOpen, cita, onClose }: CitaDetailModalProps)
                     )}
                   </div>
                 )}
-
-                {/* Servicios Prestados */}
-                {cita.estado === "REALIZADA" && serviciosPrestados && serviciosPrestados.length > 0 && (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                    <h3 className="mb-3 text-sm font-semibold text-gray-900">Servicios Prestados</h3>
-                    <div className="space-y-2">
-                      {serviciosPrestados.map((servicio) => (
-                        <div
-                          key={servicio.idPrestado}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3"
-                        >
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-gray-900">
-                              {servicio.servicio?.nombre || "Servicio"}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {dayjs(servicio.fechaEjecucion).format("DD/MM/YYYY HH:mm")} •{" "}
-                              {parseFloat(servicio.costoTotal).toLocaleString("es-CO", {
-                                style: "currency",
-                                currency: "COP",
-                              })}
-                            </p>
-                            {servicio.observaciones && (
-                              <p className="mt-1 text-xs text-gray-600">{servicio.observaciones}</p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => handleGenerarResumen(servicio.idPrestado)}
-                            disabled={isGenerandoResumen}
-                            className="ml-3 rounded-lg border border-info bg-info/10 px-3 py-1.5 text-xs font-semibold text-info transition-all hover:bg-info hover:text-white disabled:opacity-50"
-                          >
-                            {isGenerandoResumen ? "..." : "📋 Resumen"}
-                          </button>
-                        </div>
-                      ))}
-                      <div className="mt-3 rounded-lg border border-primary bg-primary/5 p-2 text-center">
-                        <p className="text-xs font-medium text-gray-600">Total</p>
-                        <p className="text-sm font-semibold text-primary">
-                          {totalServicios.toLocaleString("es-CO", { style: "currency", currency: "COP" })}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* Acciones */}
-              <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-4">
+              {/* Servicios prestados section */}
+              {cita.estado === "REALIZADA" && serviciosPrestados && serviciosPrestados.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="mb-3 text-sm font-semibold text-gray-900">Servicios Prestados</h3>
+                  <div className="space-y-2">
+                    {serviciosPrestados.map((servicio) => (
+                      <div
+                        key={servicio.idPrestado}
+                        className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3"
+                      >
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {servicio.servicio?.nombre || "Servicio"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {dayjs(servicio.fechaEjecucion).format("DD/MM/YYYY HH:mm")} •{" "}
+                            {Number.parseFloat(servicio.costoTotal).toLocaleString("es-CO", {
+                              style: "currency",
+                              currency: "COP",
+                            })}
+                          </p>
+                          {servicio.observaciones && (
+                            <p className="mt-1 text-xs text-gray-600">{servicio.observaciones}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleGenerarResumen(servicio.idPrestado)}
+                          disabled={isGenerandoResumen}
+                          className="ml-3 rounded-lg border border-info bg-info/10 px-3 py-1.5 text-xs font-semibold text-info transition-all hover:bg-info hover:text-white disabled:opacity-50"
+                        >
+                          {isGenerandoResumen ? "..." : "📋 Resumen"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Botones de acción */}
+              <div className="flex gap-3 border-t border-gray-200 pt-4">
                 {isVeterinario ? (
                   <>
-                    {cita.estado === "PROGRAMADA" ? (
+                    {cita.estado === "PROGRAMADA" && (
                       <button
-                        onClick={handleCompletar}
-                        disabled={completarMutation.isPending}
-                        className="w-full rounded-lg bg-success px-4 py-2 text-sm font-medium text-white transition-all hover:bg-success/90 disabled:opacity-50"
+                        onClick={() => setIsCreateServicioModalOpen(true)}
+                        disabled={cita.estado === "REALIZADA"}
+                        className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-all flex items-center justify-center gap-2 ${
+                          cita.estado === "REALIZADA"
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-green-600 hover:bg-green-700"
+                        }`}
                       >
-                        {completarMutation.isPending ? "Marcando..." : "Marcar como atendida"}
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {cita.estado === "REALIZADA" ? "Consulta Completada" : "Completar Consulta"}
                       </button>
-                    ) : cita.estado === "REALIZADA" ? (
-                      <p className="w-full text-center text-sm text-gray-500">Esta cita ya fue marcada como atendida.</p>
-                    ) : (
-                      <p className="w-full text-center text-sm text-gray-500">Esta cita fue cancelada.</p>
                     )}
+                    {renderEstadoMessage()}
                   </>
                 ) : (
                   <>
                     {cita.estado === "PROGRAMADA" && (
                       <>
                         <button
-                          onClick={() => setIsCreateServicioModalOpen(true)}
-                          className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-all hover:bg-primary/90"
-                        >
-                          Registrar Consulta
-                        </button>
-                        <button
-                          onClick={handleCompletar}
-                          disabled={completarMutation.isPending}
-                          className="flex-1 rounded-lg bg-success px-4 py-2 text-sm font-medium text-white transition-all hover:bg-success/90 disabled:opacity-50"
-                        >
-                          {completarMutation.isPending ? "Completando..." : "Completar Cita"}
-                        </button>
-                        <button
                           onClick={() => setAction("reprogramar")}
-                          className="flex-1 rounded-lg border border-primary bg-white px-4 py-2 text-sm font-medium text-primary transition-all hover:bg-primary hover:text-white"
+                          className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-all hover:bg-primary/90"
                         >
                           Reprogramar
                         </button>
                         <button
                           onClick={() => setAction("cancelar")}
-                          className="flex-1 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-all hover:bg-red-50"
+                          className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-red-700"
                         >
-                          Cancelar
+                          Cancelar Cita
                         </button>
                       </>
                     )}
-                    {cita.estado === "REALIZADA" && (
-                      <>
-                        <button
-                          onClick={() => setIsCreateServicioModalOpen(true)}
-                          className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-all hover:bg-primary/90"
-                        >
-                          Agregar Servicio
-                        </button>
-                        {cita.paciente?.id && (
-                          <button
-                            onClick={() => setIsCreateFacturaModalOpen(true)}
-                            className="flex-1 rounded-lg bg-success px-4 py-2 text-sm font-medium text-white transition-all hover:bg-success/90"
-                          >
-                            Crear Factura
-                          </button>
-                        )}
-                        <p className="w-full text-center text-sm text-gray-500">Esta cita ya fue completada</p>
-                      </>
-                    )}
-                    {cita.estado === "CANCELADA" && (
-                      <p className="w-full text-center text-sm text-gray-500">Esta cita fue cancelada</p>
-                    )}
+                    {renderEstadoMessage()}
                   </>
                 )}
               </div>
             </div>
-          ) : action === "reprogramar" ? (
-            <form onSubmit={handleSubmitReprogramar(onReprogramar)} className="space-y-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Nueva Fecha y Hora <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  {...registerReprogramar("nuevaFechaHora", { required: "La nueva fecha es obligatoria" })}
-                  min={dayjs().format("YYYY-MM-DDTHH:mm")}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setAction("view")}
-                  className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={reprogramarMutation.isPending}
-                  className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-all hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {reprogramarMutation.isPending ? "Reprogramando..." : "Confirmar Reprogramación"}
-                </button>
-              </div>
-            </form>
           ) : (
-            <form onSubmit={handleSubmitCancelar(onCancelar)} className="space-y-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Motivo de Cancelación <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  {...registerCancelar("motivoCancelacion", { required: "El motivo es obligatorio" })}
-                  rows={4}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  placeholder="Describe el motivo de la cancelación..."
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setAction("view")}
-                  className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={cancelarMutation.isPending}
-                  className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"
-                >
-                  {cancelarMutation.isPending ? "Cancelando..." : "Confirmar Cancelación"}
-                </button>
-              </div>
-            </form>
+            renderFormulario()
           )}
         </div>
       </div>
 
-      <CreateServicioPrestadoModal
+      <CompletarConsultaModal
         isOpen={isCreateServicioModalOpen}
         cita={cita}
         onClose={() => setIsCreateServicioModalOpen(false)}

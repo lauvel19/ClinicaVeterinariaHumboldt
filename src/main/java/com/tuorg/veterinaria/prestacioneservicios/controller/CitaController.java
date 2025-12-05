@@ -156,17 +156,21 @@ public class CitaController {
     }
 
     /**
-     * Marca una cita como completada.
+     * Completa una cita programada con datos médicos.
      * Solo veterinarios pueden marcar citas como completadas.
+     * Genera automáticamente la factura basada en el tipo de servicio.
      * 
      * @param citaId ID de la cita
+     * @param request Datos médicos de la consulta (opcional)
      * @return Respuesta con la cita completada
      */
     @PutMapping("/{citaId}/completar")
     @PreAuthorize("hasRole('VETERINARIO')")
-    public ResponseEntity<ApiResponse<CitaResponse>> completar(@PathVariable Long citaId) {
-        CitaResponse cita = citaService.completar(citaId);
-        return ResponseEntity.ok(ApiResponse.success("Cita completada exitosamente", cita));
+    public ResponseEntity<ApiResponse<CitaResponse>> completar(
+            @PathVariable Long citaId,
+            @RequestBody(required = false) com.tuorg.veterinaria.prestacioneservicios.dto.CompletarConsultaRequest request) {
+        CitaResponse cita = citaService.completar(citaId, request);
+        return ResponseEntity.ok(ApiResponse.success("Consulta completada exitosamente. Se ha generado la factura automáticamente.", cita));
     }
 
     /**
@@ -296,6 +300,34 @@ public class CitaController {
         List<com.tuorg.veterinaria.prestacioneservicios.dto.HorarioDisponibilidadResponse> horarios = 
                 citaService.obtenerHorariosDelDia(veterinarioId, fechaParsed);
         return ResponseEntity.ok(ApiResponse.success("Horarios obtenidos exitosamente", horarios));
+    }
+
+    /**
+     * Confirma una cita reservada (cambia de RESERVADA a PROGRAMADA).
+     * Solo el secretario puede confirmar reservas.
+     * 
+     * @param citaId ID de la cita
+     * @return Respuesta con la cita confirmada
+     */
+    @PutMapping("/{citaId}/confirmar")
+    @PreAuthorize("hasRole('SECRETARIO')")
+    public ResponseEntity<ApiResponse<CitaResponse>> confirmarReserva(@PathVariable Long citaId) {
+        CitaResponse cita = citaService.confirmarReserva(citaId);
+        return ResponseEntity.ok(ApiResponse.success("Reserva confirmada exitosamente", cita));
+    }
+
+    /**
+     * Rechaza/libera una cita reservada (la cancela y libera el espacio).
+     * Solo el secretario puede rechazar reservas.
+     * 
+     * @param citaId ID de la cita
+     * @return Respuesta con la cita rechazada
+     */
+    @PutMapping("/{citaId}/rechazar")
+    @PreAuthorize("hasRole('SECRETARIO')")
+    public ResponseEntity<ApiResponse<CitaResponse>> rechazarReserva(@PathVariable Long citaId) {
+        CitaResponse cita = citaService.rechazarReserva(citaId);
+        return ResponseEntity.ok(ApiResponse.success("Reserva rechazada exitosamente", cita));
     }
 }
 

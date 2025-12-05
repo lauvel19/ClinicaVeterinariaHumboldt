@@ -56,19 +56,27 @@ public class PacienteService {
     private final UsuarioRepository usuarioRepository;
 
     /**
+     * Servicio de almacenamiento de archivos.
+     */
+    private final com.tuorg.veterinaria.common.storage.FileStorageService fileStorageService;
+
+    /**
      * Constructor con inyección de dependencias.
      * 
      * @param pacienteRepository Repositorio de pacientes
      * @param historiaClinicaRepository Repositorio de historias clínicas
      * @param usuarioRepository Repositorio de usuarios
+     * @param fileStorageService Servicio de almacenamiento de archivos
      */
     @Autowired
     public PacienteService(PacienteRepository pacienteRepository,
                           HistoriaClinicaRepository historiaClinicaRepository,
-                          UsuarioRepository usuarioRepository) {
+                          UsuarioRepository usuarioRepository,
+                          com.tuorg.veterinaria.common.storage.FileStorageService fileStorageService) {
         this.pacienteRepository = pacienteRepository;
         this.historiaClinicaRepository = historiaClinicaRepository;
         this.usuarioRepository = usuarioRepository;
+        this.fileStorageService = fileStorageService;
     }
 
     /**
@@ -111,6 +119,7 @@ public class PacienteService {
         paciente.setSexo(request.getSexo());
         paciente.setPesoKg(request.getPesoKg());
         paciente.setEstadoSalud(request.getEstadoSalud());
+        paciente.setFotoPerfil(request.getFotoPerfil());
         paciente.setCliente(cliente);
 
         // Generar identificador externo si no existe
@@ -218,6 +227,9 @@ public class PacienteService {
         if (request.getEstadoSalud() != null) {
             pacienteExistente.setEstadoSalud(request.getEstadoSalud());
         }
+        if (request.getFotoPerfil() != null) {
+            pacienteExistente.setFotoPerfil(request.getFotoPerfil());
+        }
         if (request.getClienteId() != null) {
             Cliente nuevoCliente = obtenerCliente(request.getClienteId());
             pacienteExistente.setCliente(nuevoCliente);
@@ -271,6 +283,31 @@ public class PacienteService {
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente", "id", id));
     }
 
+    /**
+     * Actualiza la foto de perfil de un paciente.
+     * 
+     * @param id ID del paciente
+     * @param file Archivo de imagen
+     * @return URL de la imagen guardada
+     * @throws IOException Si hay error al guardar el archivo
+     */
+    @Transactional
+    public String actualizarFotoPerfil(Long id, org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
+        Paciente paciente = obtenerPacienteEntidad(id);
+        
+        // Eliminar foto anterior si existe
+        if (paciente.getFotoPerfil() != null) {
+            fileStorageService.eliminarFoto(paciente.getFotoPerfil());
+        }
+        
+        // Guardar nueva foto
+        String fotoUrl = fileStorageService.guardarFotoPaciente(file, id);
+        paciente.setFotoPerfil(fotoUrl);
+        pacienteRepository.save(paciente);
+        
+        return fotoUrl;
+    }
+
     private PacienteResponse mapToResponse(Paciente paciente) {
         Cliente cliente = paciente.getCliente();
         PacienteOwnerResponse owner = new PacienteOwnerResponse(
@@ -289,6 +326,7 @@ public class PacienteService {
                 paciente.getSexo(),
                 paciente.getPesoKg(),
                 paciente.getEstadoSalud(),
+                paciente.getFotoPerfil(),
                 owner,
                 paciente.getIdentificadorExterno()
         );

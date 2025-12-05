@@ -14,6 +14,7 @@ export interface PacienteRequest {
   readonly sexo?: string;
   readonly pesoKg?: number;
   readonly estadoSalud?: string;
+  readonly fotoPerfil?: string;
   readonly clienteId: number;
   readonly identificadorExterno?: string;
 }
@@ -26,6 +27,7 @@ export interface PacienteUpdateRequest {
   readonly sexo?: string;
   readonly pesoKg?: number;
   readonly estadoSalud?: string;
+  readonly fotoPerfil?: string;
 }
 
 export const PacientesRepository = {
@@ -61,7 +63,17 @@ export const PacientesRepository = {
 
   generarResumen: async (id: number): Promise<string> => {
     const client = getApiClient();
-    const { data } = await client.get<ApiResponse<string>>(`${BASE_PATH}/${id}/resumen`);
+    const { data} = await client.get<ApiResponse<string>>(`${BASE_PATH}/${id}/resumen`);
+    return unwrapResponse(data);
+  },
+
+  subirFoto: async (id: number, file: File): Promise<string> => {
+    const client = getApiClient();
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await client.post<ApiResponse<string>>(`${BASE_PATH}/${id}/foto`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return unwrapResponse(data);
   },
 };

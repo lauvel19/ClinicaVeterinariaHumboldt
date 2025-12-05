@@ -1,6 +1,7 @@
 // Página principal del veterinario que replica la vista de dashboard del prototipo.
 // Genera tarjetas de resumen, lista de citas del día y accesos rápidos.
 import { Fragment, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import classNames from "classnames";
 
 import { useVeterinarianDashboard } from "../hooks/useVeterinarianDashboard";
@@ -18,6 +19,7 @@ const statusLabels: Record<string, { label: string; tone: string }> = {
 };
 
 export const VeterinarianDashboardPage = () => {
+  const navigate = useNavigate();
   const { data, isLoading, isError } = useVeterinarianDashboard();
   const [isCreateCitaModalOpen, setIsCreateCitaModalOpen] = useState(false);
   const [selectedCita, setSelectedCita] = useState<ApiCitaResponse | null>(null);
@@ -75,11 +77,16 @@ export const VeterinarianDashboardPage = () => {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {/* Oculto para rol VETERINARIO: creación de consultas/citas no permitida */}
-              <button className="flex-1 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:border-primary hover:bg-primary/5 hover:text-primary hover:shadow-md sm:flex-none sm:rounded-xl sm:px-4 sm:py-2.5 sm:text-sm">
+              <button 
+                onClick={() => navigate('/veterinario/pacientes')}
+                className="flex-1 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:border-primary hover:bg-primary/5 hover:text-primary hover:shadow-md sm:flex-none sm:rounded-xl sm:px-4 sm:py-2.5 sm:text-sm"
+              >
                 🔍 <span className="hidden sm:inline">Buscar paciente</span><span className="sm:hidden">Buscar</span>
               </button>
-              <button className="flex-1 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:border-primary hover:bg-primary/5 hover:text-primary hover:shadow-md sm:flex-none sm:rounded-xl sm:px-4 sm:py-2.5 sm:text-sm">
+              <button 
+                onClick={() => navigate('/veterinario/agenda')}
+                className="flex-1 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:border-primary hover:bg-primary/5 hover:text-primary hover:shadow-md sm:flex-none sm:rounded-xl sm:px-4 sm:py-2.5 sm:text-sm"
+              >
                 📆 <span className="hidden sm:inline">Ver mi agenda</span><span className="sm:hidden">Agenda</span>
               </button>
             </div>
@@ -147,21 +154,25 @@ export const VeterinarianDashboardPage = () => {
           title="Seguimientos activos"
           description="Tratamientos en progreso"
           value={`${accesosRapidos.seguimientosActivos} activos`}
+          onClick={() => navigate('/veterinario/seguimientos')}
         />
         <ShortcutCard
           title="Vacunas pendientes"
           description="Próximas aplicaciones"
           value={`${accesosRapidos.vacunasPendientes} pendientes`}
+          onClick={() => navigate('/veterinario/pacientes')}
         />
         <ShortcutCard
           title="Historias clínicas"
           description="Buscar registros médicos"
           value={`${accesosRapidos.historiasClinicas} registros`}
+          onClick={() => navigate('/veterinario/historias')}
         />
         <ShortcutCard
           title="Pacientes nuevos"
           description="Registrados esta semana"
           value={`${accesosRapidos.pacientesNuevosSemana} nuevos`}
+          onClick={() => navigate('/veterinario/pacientes')}
         />
       </section>
 
@@ -214,9 +225,10 @@ interface ShortcutCardProps {
   readonly title: string;
   readonly description: string;
   readonly value: string;
+  readonly onClick?: () => void;
 }
 
-const ShortcutCard = ({ title, description, value }: ShortcutCardProps) => {
+const ShortcutCard = ({ title, description, value, onClick }: ShortcutCardProps) => {
   const iconMap: Record<string, { icon: string; gradient: string }> = {
     "Seguimientos activos": { icon: "📋", gradient: "from-purple-50 to-purple-100/30" },
     "Vacunas pendientes": { icon: "💉", gradient: "from-green-50 to-green-100/30" },
@@ -239,7 +251,10 @@ const ShortcutCard = ({ title, description, value }: ShortcutCardProps) => {
       <div className="relative z-10 mt-4">
         <p className="text-3xl font-bold text-secondary">{value}</p>
       </div>
-      <button className="relative z-10 mt-6 w-fit rounded-xl border-2 border-primary/20 bg-white px-4 py-2 text-xs font-bold text-primary transition-all hover:border-primary hover:bg-primary hover:text-white hover:shadow-md">
+      <button 
+        onClick={onClick}
+        className="relative z-10 mt-6 w-fit rounded-xl border-2 border-primary/20 bg-white px-4 py-2 text-xs font-bold text-primary transition-all hover:border-primary hover:bg-primary hover:text-white hover:shadow-md"
+      >
         Ver detalle →
       </button>
     </article>

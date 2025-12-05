@@ -39,6 +39,9 @@ public class PacienteResponse {
     @Schema(description = "Estado de salud", example = "Estable")
     private String estadoSalud;
 
+    @Schema(description = "URL de la foto de perfil", example = "/uploads/pacientes/paciente_1_abc123.jpg")
+    private String fotoPerfil;
+
     @Schema(description = "Cliente dueño")
     private PacienteOwnerResponse cliente;
 

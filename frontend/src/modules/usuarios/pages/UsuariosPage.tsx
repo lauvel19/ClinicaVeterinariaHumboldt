@@ -431,6 +431,7 @@ const EditUsuarioModal = ({ isOpen, usuarioId, onClose }: EditUsuarioModalProps)
     telefono: "",
     direccion: "",
     username: "",
+    rolId: undefined,
     activo: true,
   });
 
@@ -444,6 +445,7 @@ const EditUsuarioModal = ({ isOpen, usuarioId, onClose }: EditUsuarioModalProps)
         telefono: usuario.telefono || "",
         direccion: usuario.direccion || "",
         username: usuario.username,
+        rolId: usuario.rol?.id,
         activo: usuario.activo,
       });
     }
@@ -536,6 +538,20 @@ const EditUsuarioModal = ({ isOpen, usuarioId, onClose }: EditUsuarioModalProps)
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
               className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Rol</label>
+            <select
+              value={formData.rolId || ""}
+              onChange={(e) => setFormData({ ...formData, rolId: e.target.value ? Number(e.target.value) : undefined })}
+              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="">Seleccionar rol</option>
+              <option value={1}>ADMIN</option>
+              <option value={2}>VETERINARIO</option>
+              <option value={3}>SECRETARIO</option>
+              <option value={4}>CLIENTE</option>
+            </select>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Nueva Contraseña (opcional)</label>

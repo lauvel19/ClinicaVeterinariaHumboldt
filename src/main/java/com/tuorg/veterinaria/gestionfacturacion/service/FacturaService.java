@@ -3,9 +3,13 @@ package com.tuorg.veterinaria.gestionfacturacion.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.element.Table;
 import com.tuorg.veterinaria.common.constants.AppConstants;
 import com.tuorg.veterinaria.common.exception.BusinessException;
 import com.tuorg.veterinaria.common.exception.ResourceNotFoundException;
+import com.tuorg.veterinaria.common.pdf.PdfGenerator;
 import com.tuorg.veterinaria.gestionusuarios.model.Cliente;
 import com.tuorg.veterinaria.gestionusuarios.model.Usuario;
 import com.tuorg.veterinaria.gestionusuarios.repository.UsuarioRepository;
@@ -18,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -37,14 +42,17 @@ public class FacturaService {
     private final FacturaRepository facturaRepository;
     private final UsuarioRepository usuarioRepository;
     private final ObjectMapper objectMapper;
+    private final PdfGenerator pdfGenerator;
 
     @Autowired
     public FacturaService(FacturaRepository facturaRepository,
                           UsuarioRepository usuarioRepository,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          PdfGenerator pdfGenerator) {
         this.facturaRepository = facturaRepository;
         this.usuarioRepository = usuarioRepository;
         this.objectMapper = objectMapper;
+        this.pdfGenerator = pdfGenerator;
     }
 
     /**
@@ -116,10 +124,118 @@ public class FacturaService {
 
     @Transactional(readOnly = true)
     public byte[] generarPDF(Long facturaId) {
-        obtener(facturaId);
-        // Nota: La generación real de PDF se implementará con iText o JasperReports
-        // cuando se requiera la funcionalidad completa de exportación
-        return new byte[0];
+        try {
+            FacturaResponse factura = obtener(facturaId);
+            
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            Document document = pdfGenerator.initDocument(baos);
+
+            // ENCABEZADO CON LOGO
+            document.add(pdfGenerator.createHeader("FACTURA", "Comprobante de Pago"));
+            document.add(pdfGenerator.createSeparator());
+
+            // INFORMACIÓN DE LA FACTURA
+            document.add(pdfGenerator.createSectionTitle("DATOS DE FACTURA"));
+            document.add(pdfGenerator.createText("Número de Factura", factura.getNumero()));
+            document.add(pdfGenerator.createText("Fecha de Emisión", pdfGenerator.formatDate(factura.getFechaEmision())));
+            document.add(pdfGenerator.createText("Estado", factura.getEstado()));
+            if (factura.getFechaPago() != null) {
+                document.add(pdfGenerator.createText("Fecha de Pago", pdfGenerator.formatDate(factura.getFechaPago())));
+            }
+
+            // DATOS DEL CLIENTE
+            if (factura.getCliente() != null) {
+                document.add(pdfGenerator.createSectionTitle("DATOS DEL CLIENTE"));
+                document.add(pdfGenerator.createText("Nombre", factura.getCliente().getNombreCompleto()));
+                document.add(pdfGenerator.createText("Correo", factura.getCliente().getCorreo()));
+                if (factura.getCliente().getTelefono() != null) {
+                    document.add(pdfGenerator.createText("Teléfono", factura.getCliente().getTelefono()));
+                }
+            }
+
+            // DETALLE DE SERVICIOS/PRODUCTOS
+            document.add(pdfGenerator.createSectionTitle("DETALLE DE FACTURA"));
+            
+            BigDecimal subtotal = BigDecimal.ZERO;
+            
+            if (factura.getContenido() != null && !factura.getContenido().isEmpty()) {
+                // Crear tabla para items
+                Table itemsTable = pdfGenerator.createTable(4, 1, 1, 2);
+                itemsTable.addHeaderCell(pdfGenerator.createHeaderCell("Descripción"));
+                itemsTable.addHeaderCell(pdfGenerator.createHeaderCell("Cantidad"));
+                itemsTable.addHeaderCell(pdfGenerator.createHeaderCell("Precio Unit."));
+                itemsTable.addHeaderCell(pdfGenerator.createHeaderCell("Total"));
+                
+                // Extraer items del contenido
+                Object itemsObj = factura.getContenido().get("items");
+                if (itemsObj == null) {
+                    itemsObj = factura.getContenido().get("servicios");
+                }
+                
+                if (itemsObj instanceof List<?> items) {
+                    for (Object itemObj : items) {
+                        if (itemObj instanceof Map<?, ?> item) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> itemMap = (Map<String, Object>) item;
+                            
+                            String descripcion = itemMap.containsKey("descripcion") ? String.valueOf(itemMap.get("descripcion")) : 
+                                               (itemMap.containsKey("nombre") ? String.valueOf(itemMap.get("nombre")) : "N/D");
+                            String cantidadStr = itemMap.containsKey("cantidad") ? String.valueOf(itemMap.get("cantidad")) : "1";
+                            String precioStr = itemMap.containsKey("precio") ? String.valueOf(itemMap.get("precio")) : 
+                                             (itemMap.containsKey("precioUnitario") ? String.valueOf(itemMap.get("precioUnitario")) : "0.00");
+                            
+                            try {
+                                int cantidad = Integer.parseInt(cantidadStr);
+                                BigDecimal precio = new BigDecimal(precioStr);
+                                BigDecimal totalItem = precio.multiply(BigDecimal.valueOf(cantidad));
+                                subtotal = subtotal.add(totalItem);
+                                
+                                itemsTable.addCell(pdfGenerator.createDataCell(descripcion));
+                                itemsTable.addCell(pdfGenerator.createDataCell(String.valueOf(cantidad)));
+                                itemsTable.addCell(pdfGenerator.createDataCell("$" + precio.toString()));
+                                itemsTable.addCell(pdfGenerator.createDataCell("$" + totalItem.toString()));
+                            } catch (NumberFormatException e) {
+                                itemsTable.addCell(pdfGenerator.createDataCell(descripcion));
+                                itemsTable.addCell(pdfGenerator.createDataCell(cantidadStr));
+                                itemsTable.addCell(pdfGenerator.createDataCell(precioStr));
+                                itemsTable.addCell(pdfGenerator.createDataCell("N/D"));
+                            }
+                        }
+                    }
+                } else {
+                    // Si no hay estructura de items, mostrar mensaje
+                    itemsTable.addCell(pdfGenerator.createDataCell("Servicios varios"));
+                    itemsTable.addCell(pdfGenerator.createDataCell("1"));
+                    itemsTable.addCell(pdfGenerator.createDataCell("$" + factura.getTotal().toString()));
+                    itemsTable.addCell(pdfGenerator.createDataCell("$" + factura.getTotal().toString()));
+                }
+                
+                document.add(itemsTable);
+            } else {
+                document.add(new Paragraph("Sin detalles específicos de factura.")
+                    .setFontSize(10)
+                    .setItalic());
+            }
+
+            // TOTALES
+            document.add(pdfGenerator.createSeparator());
+            document.add(pdfGenerator.createText("TOTAL A PAGAR", "$" + factura.getTotal().toString())
+                .setFontSize(14)
+                .setBold());
+            
+            if (factura.getFormaPago() != null) {
+                document.add(pdfGenerator.createText("Forma de Pago", factura.getFormaPago()));
+            }
+
+            // PIE DE PÁGINA
+            document.add(pdfGenerator.createFooter());
+
+            document.close();
+            return baos.toByteArray();
+            
+        } catch (Exception e) {
+            throw new BusinessException("Error al generar PDF de factura: " + e.getMessage());
+        }
     }
 
     @Transactional

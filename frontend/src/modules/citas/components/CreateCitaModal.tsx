@@ -32,6 +32,7 @@ export const CreateCitaModal = ({ isOpen, onClose, initialDate }: CreateCitaModa
   const queryClient = useQueryClient();
   const user = authStore((state) => state.user);
   const isSecretario = user?.rol?.toUpperCase() === "SECRETARIO";
+  const isCliente = user?.rol?.toUpperCase() === "CLIENTE";
   const [horarioError, setHorarioError] = useState<string>("");
   const [fechaSeleccionada, setFechaSeleccionada] = useState<dayjs.Dayjs>(
     initialDate || dayjs().add(2, "hours")
@@ -56,7 +57,7 @@ export const CreateCitaModal = ({ isOpen, onClose, initialDate }: CreateCitaModa
   const fechaHoraValue = watch("fechaHora");
   const veterinarioIdValue = watch("veterinarioId");
 
-  // Validar horario laboral en tiempo real
+  // Validar horario laboral en tiempo real - SIMPLIFICADO
   useEffect(() => {
     if (!fechaHoraValue) {
       setHorarioError("");
@@ -64,44 +65,15 @@ export const CreateCitaModal = ({ isOpen, onClose, initialDate }: CreateCitaModa
     }
 
     const fecha = dayjs(fechaHoraValue);
-    const diaSemana = fecha.day(); // 0=Domingo, 6=Sábado
-    const hora = fecha.hour();
-
-    // Validar que sea al menos 2 horas en el futuro
     const ahora = dayjs();
-    const minimoAnticipacion = ahora.add(2, "hours");
-    if (fecha.isBefore(minimoAnticipacion)) {
-      const horaMinima = minimoAnticipacion.format("DD/MM/YYYY h:mm A");
-      setHorarioError(`⚠️ La hora mínima permitida es: ${horaMinima}`);
+
+    // ÚNICA VALIDACIÓN: No permitir fechas/horas pasadas
+    if (fecha.isBefore(ahora)) {
+      setHorarioError(`❌ No se pueden agendar citas en fechas u horas pasadas`);
       return;
     }
 
-    // Domingo - Cerrado
-    if (diaSemana === 0) {
-      setHorarioError("❌ La clínica está cerrada los domingos");
-      return;
-    }
-
-    // Sábado - Solo mañana (8:00 - 12:00)
-    if (diaSemana === 6) {
-      if (hora < 8 || hora >= 12) {
-        setHorarioError("❌ Los sábados el horario es de 8:00 AM a 12:00 PM");
-        return;
-      }
-    }
-
-    // Lunes a Viernes - Mañana (8:00 - 12:00) y Tarde (14:00 - 18:00)
-    if (diaSemana >= 1 && diaSemana <= 5) {
-      const enHorarioManana = hora >= 8 && hora < 12;
-      const enHorarioTarde = hora >= 14 && hora < 18;
-      
-      if (!enHorarioManana && !enHorarioTarde) {
-        setHorarioError("❌ Horario no válido. Seleccione: 8:00-12:00 o 14:00-18:00");
-        return;
-      }
-    }
-
-    // Si pasó todas las validaciones
+    // Si pasó la validación, limpiar error
     setHorarioError("");
   }, [fechaHoraValue]);
 
@@ -114,7 +86,7 @@ export const CreateCitaModal = ({ isOpen, onClose, initialDate }: CreateCitaModa
   const { data: veterinarios } = useQuery({
     queryKey: ["veterinarios"],
     queryFn: VeterinariosRepository.getAll,
-    enabled: isOpen && isSecretario,
+    enabled: isOpen && (isSecretario || isCliente), // Clientes también necesitan ver veterinarios
   });
 
   const mutation = useMutation({
@@ -139,7 +111,10 @@ export const CreateCitaModal = ({ isOpen, onClose, initialDate }: CreateCitaModa
 
     // Determinar el ID del veterinario según el rol
     let veterinarioId: number;
-    if (user.rol?.toUpperCase() === "SECRETARIO") {
+    const userRol = user.rol?.toUpperCase();
+    
+    if (userRol === "SECRETARIO" || userRol === "CLIENTE") {
+      // Secretarios y Clientes deben seleccionar un veterinario
       if (!data.veterinarioId) {
         toast.error("Debe seleccionar un veterinario");
         return;
@@ -179,30 +154,30 @@ export const CreateCitaModal = ({ isOpen, onClose, initialDate }: CreateCitaModa
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl my-8">
-        <div className="border-b border-gray-200 px-6 py-4">
-          <h2 className="text-xl font-semibold text-gray-900">Agendar Nueva Cita</h2>
-          <p className="mt-1 text-sm text-gray-500">Completa la información de la cita</p>
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 p-2 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-2xl rounded-lg sm:rounded-2xl bg-white shadow-xl my-2 sm:my-8 max-h-[98vh] overflow-y-auto">
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 rounded-t-lg sm:rounded-t-2xl">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Agendar Nueva Cita</h2>
+          <p className="mt-1 text-xs sm:text-sm text-gray-500">Completa la información de la cita</p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-4 sm:p-6">
           <div className="space-y-4">
-            {isSecretario && (
+            {(isSecretario || isCliente) && (
               <div>
                 <label htmlFor="veterinarioId" className="mb-1 block text-sm font-medium text-gray-700">
                   Veterinario <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="veterinarioId"
-                  {...register("veterinarioId", { required: isSecretario ? "Debe seleccionar un veterinario" : false })}
+                  {...register("veterinarioId", { required: (isSecretario || isCliente) ? "Debe seleccionar un veterinario" : false })}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
                   <option value="">Seleccione un veterinario...</option>
                   {veterinarios?.map((veterinario) => (
                     <option key={veterinario.id} value={veterinario.id}>
                       {veterinario.nombre} {veterinario.apellido}
-                      {veterinario.rol?.nombreRol === "VETERINARIO" ? " - Veterinario" : ""}
+                      {veterinario.rol?.nombre === "VETERINARIO" ? " - Veterinario" : ""}
                     </option>
                   ))}
                 </select>
@@ -230,31 +205,33 @@ export const CreateCitaModal = ({ isOpen, onClose, initialDate }: CreateCitaModa
             </div>
 
             <div>
-              <div className="mb-3 flex items-center justify-between">
-                <label htmlFor="horarios-disponibles" className="block text-sm font-medium text-gray-700">
+              <div className="mb-3">
+                <label htmlFor="horarios-disponibles" className="block text-sm font-medium text-gray-700 mb-2">
                   Seleccionar Fecha y Hora <span className="text-red-500">*</span>
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => setFechaSeleccionada(fechaSeleccionada.subtract(1, "day"))}
-                    className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    className="flex-1 sm:flex-none rounded-lg border border-gray-300 px-2 sm:px-3 py-1.5 sm:py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap"
                   >
-                    ← Día Anterior
+                    <span className="hidden sm:inline">← Día Anterior</span>
+                    <span className="sm:hidden">← Anterior</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setFechaSeleccionada(dayjs())}
-                    className="rounded-lg border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary/5"
+                    className="flex-1 sm:flex-none rounded-lg border border-primary px-2 sm:px-3 py-1.5 sm:py-1 text-xs font-medium text-primary hover:bg-primary/5"
                   >
                     Hoy
                   </button>
                   <button
                     type="button"
                     onClick={() => setFechaSeleccionada(fechaSeleccionada.add(1, "day"))}
-                    className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    className="flex-1 sm:flex-none rounded-lg border border-gray-300 px-2 sm:px-3 py-1.5 sm:py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap"
                   >
-                    Día Siguiente →
+                    <span className="hidden sm:inline">Día Siguiente →</span>
+                    <span className="sm:hidden">Siguiente →</span>
                   </button>
                 </div>
               </div>
@@ -264,20 +241,25 @@ export const CreateCitaModal = ({ isOpen, onClose, initialDate }: CreateCitaModa
                   veterinarioId={(() => {
                     console.log("🔧 Calculando veterinarioId:", {
                       isSecretario,
+                      isCliente,
                       veterinarioIdValue,
                       userId: user?.id,
                       userRol: user?.rol,
                     });
                     
-                    if (isSecretario && veterinarioIdValue) {
+                    // Secretarios y Clientes seleccionan veterinario del dropdown
+                    if ((isSecretario || isCliente) && veterinarioIdValue) {
                       const id = Number.parseInt(veterinarioIdValue);
-                      console.log("✅ Modo Secretario - veterinarioId:", id);
+                      console.log("✅ Modo Secretario/Cliente - veterinarioId:", id);
                       return id;
                     }
-                    if (!isSecretario && user?.id) {
+                    
+                    // Veterinarios usan su propio ID
+                    if (!isSecretario && !isCliente && user?.id) {
                       console.log("✅ Modo Veterinario - veterinarioId:", user.id);
                       return user.id;
                     }
+                    
                     console.log("⚠️ No se pudo determinar veterinarioId");
                     return null;
                   })()}
@@ -306,7 +288,7 @@ export const CreateCitaModal = ({ isOpen, onClose, initialDate }: CreateCitaModa
 
               {fechaHoraValue && (
                 <div className="mt-2 rounded-md bg-green-50 border border-green-200 px-3 py-2">
-                  <p className="text-xs font-medium text-green-700">
+                  <p className="text-xs font-medium text-green-700 break-words">
                     ✓ {dayjs(fechaHoraValue).format("dddd, D [de] MMMM [de] YYYY [a las] HH:mm")}
                   </p>
                 </div>
@@ -365,18 +347,18 @@ export const CreateCitaModal = ({ isOpen, onClose, initialDate }: CreateCitaModa
             </div>
           </div>
 
-          <div className="mt-6 flex gap-3 justify-end">
+          <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
+              className="w-full sm:w-auto rounded-lg border border-gray-300 bg-white px-4 py-2.5 sm:py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={mutation.isPending || !!horarioError}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto rounded-lg bg-primary px-4 py-2.5 sm:py-2 text-sm font-medium text-white transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {mutation.isPending ? "Agendando..." : "Agendar Cita"}
             </button>

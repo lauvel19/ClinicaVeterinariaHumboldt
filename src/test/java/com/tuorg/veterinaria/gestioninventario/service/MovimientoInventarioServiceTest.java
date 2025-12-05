@@ -1,6 +1,7 @@
 package com.tuorg.veterinaria.gestioninventario.service;
 
 import com.tuorg.veterinaria.common.exception.BusinessException;
+import com.tuorg.veterinaria.common.validation.BusinessValidator;
 import com.tuorg.veterinaria.gestioninventario.dto.MovimientoEntradaRequest;
 import com.tuorg.veterinaria.gestioninventario.dto.MovimientoInventarioResponse;
 import com.tuorg.veterinaria.gestioninventario.dto.MovimientoSalidaRequest;
@@ -50,6 +51,9 @@ class MovimientoInventarioServiceTest {
 
     @Mock
     private ProductoService productoService;
+
+    @Mock
+    private BusinessValidator businessValidator;
 
     @InjectMocks
     private MovimientoInventarioService movimientoInventarioService;
@@ -135,6 +139,7 @@ class MovimientoInventarioServiceTest {
         movimientoGuardado.setProducto(producto);
         movimientoGuardado.setCantidad(10);
 
+        doNothing().when(businessValidator).validarStockSuficiente(eq(1L), eq(10));
         when(productoService.verificarDisponibilidad(eq(1L), eq(10))).thenReturn(true);
         when(productoRepository.findById(1L)).thenReturn(Optional.of(producto));
         when(movimientoInventarioRepository.save(any(MovimientoInventario.class))).thenReturn(movimientoGuardado);
@@ -148,6 +153,7 @@ class MovimientoInventarioServiceTest {
         assertThat(response.getCantidad()).isEqualTo(10);
         assertThat(response.getStockResultante()).isEqualTo(40);
 
+        verify(businessValidator).validarStockSuficiente(1L, 10);
         verify(productoService).verificarDisponibilidad(1L, 10);
         verify(productoRepository).findById(1L);
         verify(movimientoInventarioRepository).save(any(MovimientoInventario.class));

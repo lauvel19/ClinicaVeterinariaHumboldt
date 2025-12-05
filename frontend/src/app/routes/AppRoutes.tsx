@@ -12,6 +12,13 @@ interface AppRoutesProps {
   readonly renderDashboard: () => ReactNode;
 }
 
+// Landing Page
+const LandingPage = lazy(() =>
+  import("../../modules/landing/pages/LandingPage").then((module) => ({
+    default: module.LandingPage,
+  })),
+);
+
 // Páginas principales del veterinario.
 const VeterinarianDashboardPage = lazy(() =>
   import("../../modules/dashboard/pages/VeterinarianDashboardPage").then((module) => ({
@@ -91,12 +98,6 @@ const AdminInventarioPage = lazy(() =>
 const FacturasPage = lazy(() =>
   import("../../modules/facturas/pages/FacturasPage").then((module) => ({
     default: module.FacturasPage,
-  })),
-);
-
-const PagoResultadoPage = lazy(() =>
-  import("../../modules/facturas/pages/PagoResultadoPage").then((module) => ({
-    default: module.PagoResultadoPage,
   })),
 );
 
@@ -221,26 +222,22 @@ export const AppRoutes = ({ renderDashboard }: AppRoutesProps) => {
 
   return (
     <Routes>
-      {/* Ruta raíz: redirige según autenticación */}
-      <Route path="/" element={<RootRedirect />} />
-
-      {/* Ruta de login: si ya está autenticado, redirige al dashboard */}
-      <Route path="/auth/login" element={<LoginGuard />} />
-
-      {/* Ruta pública para resultado de pago de ePayco */}
-      <Route
-        path="/facturas/pago-resultado"
+      {/* Landing Page - Página principal pública */}
+      <Route 
+        path="/" 
         element={
           <Suspense fallback={<FullscreenLoader />}>
-            <PagoResultadoPage />
+            <LandingPage />
           </Suspense>
-        }
+        } 
       />
+
+      {/* Ruta de login: si ya está autenticado, redirige al dashboard */}
+      <Route path="/login" element={<LoginGuard />} />
+      <Route path="/auth/login" element={<LoginGuard />} />
 
       {/* Rutas protegidas del dashboard */}
       <Route element={renderDashboard()}>
-        <Route index element={<RootRedirect />} />
-        
         {/* Rutas del veterinario */}
         <Route
           path="/veterinario/inicio"
@@ -297,6 +294,14 @@ export const AppRoutes = ({ renderDashboard }: AppRoutesProps) => {
           element={
             <RoleGuard allowedRoles={["CLIENTE"]}>
               <ClienteDashboardPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/cliente/facturas"
+          element={
+            <RoleGuard allowedRoles={["CLIENTE"]}>
+              <FacturasPage />
             </RoleGuard>
           }
         />

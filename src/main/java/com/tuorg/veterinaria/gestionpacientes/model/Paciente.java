@@ -84,6 +84,13 @@ public class Paciente extends Auditable {
     private String estadoSalud;
 
     /**
+     * URL o path de la foto de perfil del paciente.
+     * Si es null, se mostrará un avatar genérico en la UI.
+     */
+    @Column(name = "foto_perfil", length = 500)
+    private String fotoPerfil;
+
+    /**
      * Cliente (dueño) de la mascota.
      * Relación Many-to-One con la entidad Cliente.
      */

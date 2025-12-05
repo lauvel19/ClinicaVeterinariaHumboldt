@@ -8,7 +8,6 @@ import { FullscreenLoader } from "../../../app/components/feedback/FullscreenLoa
 import { PacientesRepository } from "../../pacientes/services/PacientesRepository";
 import { HistoriasRepository } from "../services/HistoriasRepository";
 import { RegistroMedicoDetailModal } from "../components/RegistroMedicoDetailModal";
-import { EditRegistroModal } from "../components/EditRegistroModal";
 import type { ApiPacienteResponse } from "../../shared/types/backend";
 import type { ApiRegistroMedicoResponse } from "../../shared/types/backend";
 
@@ -22,7 +21,6 @@ export const VeterinarianHistoriesPage = () => {
 
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [selectedRegistro, setSelectedRegistro] = useState<ApiRegistroMedicoResponse | null>(null);
-  const [editingRegistro, setEditingRegistro] = useState<ApiRegistroMedicoResponse | null>(null);
 
   useEffect(() => {
     if (!selectedPatientId && pacientes?.length) {
@@ -136,7 +134,6 @@ export const VeterinarianHistoriesPage = () => {
                   registro={registro} 
                   index={index} 
                   onViewDetail={() => setSelectedRegistro(registro)}
-                  onEdit={() => setEditingRegistro(registro)}
                 />
               ))}
             </div>
@@ -148,12 +145,6 @@ export const VeterinarianHistoriesPage = () => {
         isOpen={selectedRegistro !== null}
         registro={selectedRegistro}
         onClose={() => setSelectedRegistro(null)}
-      />
-
-      <EditRegistroModal
-        isOpen={editingRegistro !== null}
-        registro={editingRegistro}
-        onClose={() => setEditingRegistro(null)}
       />
     </div>
   );
@@ -204,10 +195,9 @@ interface TimelineItemProps {
   readonly registro: ApiRegistroMedicoResponse;
   readonly index: number;
   readonly onViewDetail: () => void;
-  readonly onEdit: () => void;
 }
 
-const TimelineItem = ({ registro, index, onViewDetail, onEdit }: TimelineItemProps) => {
+const TimelineItem = ({ registro, index, onViewDetail }: TimelineItemProps) => {
   const fecha = dayjs(registro.fecha);
   return (
     <div className="flex gap-4">
@@ -257,13 +247,7 @@ const TimelineItem = ({ registro, index, onViewDetail, onEdit }: TimelineItemPro
             className="rounded-2xl border border-primary px-3 py-1 font-semibold text-primary transition-base hover:bg-primary hover:text-white"
             onClick={onViewDetail}
           >
-            Ver detalle
-          </button>
-          <button
-            className="rounded-2xl border border-green-600 px-3 py-1 font-semibold text-green-600 transition-base hover:bg-green-600 hover:text-white"
-            onClick={onEdit}
-          >
-            ✏️ Editar
+            👁️ Ver detalle completo
           </button>
         </div>
       </div>

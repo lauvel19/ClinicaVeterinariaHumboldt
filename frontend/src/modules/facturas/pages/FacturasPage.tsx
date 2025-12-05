@@ -9,12 +9,16 @@ import { FacturasRepository } from "../services/FacturasRepository";
 import { CreateFacturaModal } from "../components/CreateFacturaModal";
 import { FacturaDetailModal } from "../components/FacturaDetailModal";
 import type { ApiFacturaResponse } from "../../shared/types/backend";
+import { authStore } from "../../../shared/state/authStore";
 
 dayjs.locale("es");
 
 type EstadoFilter = "TODAS" | "PENDIENTE" | "PAGADA" | "ANULADA";
 
 export const FacturasPage = () => {
+  const user = authStore((state) => state.user);
+  const isCliente = user?.rol === "CLIENTE";
+  
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedFacturaId, setSelectedFacturaId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -23,8 +27,14 @@ export const FacturasPage = () => {
   const [dateTo, setDateTo] = useState<string>("");
 
   const { data: facturas, isLoading } = useQuery({
-    queryKey: ["facturas"],
-    queryFn: FacturasRepository.getAll,
+    queryKey: isCliente ? ["facturas-cliente", user?.id] : ["facturas"],
+    queryFn: () => {
+      if (isCliente && user?.id) {
+        return FacturasRepository.getByCliente(user.id);
+      }
+      return FacturasRepository.getAll();
+    },
+    enabled: !isCliente || !!user?.id,
   });
 
   const facturasFiltradas = useMemo(() => {
@@ -68,15 +78,21 @@ export const FacturasPage = () => {
     <div className="w-full space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold text-secondary">Gestión de Facturas</h2>
-          <p className="text-sm text-gray-500">Administra las facturas emitidas</p>
+          <h2 className="text-2xl font-semibold text-secondary">
+            {isCliente ? "Mis Facturas" : "Gestión de Facturas"}
+          </h2>
+          <p className="text-sm text-gray-500">
+            {isCliente ? "Consulta tus facturas y pagos" : "Administra las facturas emitidas"}
+          </p>
         </div>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-soft transition-base hover:bg-primary-dark"
-        >
-          Nueva Factura
-        </button>
+        {!isCliente && (
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-soft transition-base hover:bg-primary-dark"
+          >
+            Nueva Factura
+          </button>
+        )}
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

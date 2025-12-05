@@ -38,6 +38,9 @@ public class PacienteRequest {
     @Schema(description = "Estado de salud", example = "Estable")
     private String estadoSalud;
 
+    @Schema(description = "URL o path de la foto de perfil", example = "/uploads/pacientes/paciente_1_abc123.jpg")
+    private String fotoPerfil;
+
     @NotNull(message = "Debe indicar el identificador del cliente")
     @Schema(description = "Identificador del cliente dueño", example = "4")
     private Long clienteId;

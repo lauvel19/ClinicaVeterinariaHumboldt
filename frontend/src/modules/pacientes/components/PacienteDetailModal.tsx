@@ -127,13 +127,21 @@ export const PacienteDetailModal = ({ isOpen, pacienteId, onClose }: PacienteDet
                   {/* Avatar grande */}
                   <div className="flex-shrink-0">
                     <div className="relative">
-                      <div className={`flex h-24 w-24 items-center justify-center rounded-3xl text-4xl text-white shadow-lg ${
-                        paciente.especie?.toLowerCase().includes("gato")
-                          ? "bg-gradient-to-br from-purple-500 to-purple-700"
-                          : "bg-gradient-to-br from-blue-500 to-blue-700"
-                      }`}>
-                        {paciente.especie?.toLowerCase().includes("gato") ? "🐱" : "🐕"}
-                      </div>
+                      {paciente.fotoPerfil ? (
+                        <img
+                          src={`http://localhost:8080/api${paciente.fotoPerfil}`}
+                          alt={paciente.nombre}
+                          className="h-24 w-24 rounded-3xl object-cover shadow-lg border-4 border-white"
+                        />
+                      ) : (
+                        <div className={`flex h-24 w-24 items-center justify-center rounded-3xl text-4xl text-white shadow-lg ${
+                          paciente.especie?.toLowerCase().includes("gato")
+                            ? "bg-gradient-to-br from-purple-500 to-purple-700"
+                            : "bg-gradient-to-br from-blue-500 to-blue-700"
+                        }`}>
+                          {paciente.especie?.toLowerCase().includes("gato") ? "🐱" : "🐕"}
+                        </div>
+                      )}
                       {/* Indicator de estado */}
                       <div className={`absolute -bottom-1 -right-1 h-6 w-6 rounded-full border-4 border-white ${
                         paciente.estadoSalud?.toLowerCase().includes("sano") || paciente.estadoSalud?.toLowerCase().includes("bueno")

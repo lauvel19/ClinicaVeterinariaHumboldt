@@ -9,62 +9,69 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * Entidad que representa un log del sistema.
+ * Entidad que representa logs del sistema para auditoría y seguimiento.
  * 
- * Esta clase almacena eventos y logs del sistema para auditoría
- * y seguimiento de actividades importantes.
- * 
- * @author Equipo de Desarrollo
- * @version 1.0.0
+ * Registra eventos importantes del sistema como errores, advertencias,
+ * información y eventos de depuración.
  */
 @Entity
-@Table(name = "logs_sistema", schema = "public")
+@Table(name = "logs_sistema", schema = "public", indexes = {
+    @Index(name = "idx_log_fecha", columnList = "fecha_hora"),
+    @Index(name = "idx_log_nivel", columnList = "nivel"),
+    @Index(name = "idx_log_componente", columnList = "componente")
+})
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class LogSistema {
 
-    /**
-     * Identificador único del log (clave primaria).
-     * Se genera automáticamente mediante BIGSERIAL en PostgreSQL.
-     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_log")
     private Long idLog;
 
     /**
-     * Fecha y hora del evento registrado.
-     * Incluye información de zona horaria.
+     * Fecha y hora en que se generó el log.
      */
     @Column(name = "fecha_hora", nullable = false)
     private LocalDateTime fechaHora;
 
     /**
-     * Nivel del log (INFO, WARN, ERROR, DEBUG).
+     * Componente o módulo que generó el log.
+     * Ejemplos: AUTENTICACION, CITAS, INVENTARIO, FACTURACION
+     */
+    @Column(name = "componente", nullable = false, length = 100)
+    private String componente;
+
+    /**
+     * Nivel del log.
+     * Valores: INFO, WARN, ERROR, DEBUG
      */
     @Column(name = "nivel", nullable = false, length = 20)
     private String nivel;
 
     /**
-     * Componente del sistema que generó el log.
-     * Ejemplos: 'gestionusuarios', 'gestioninventario', etc.
-     */
-    @Column(name = "componente", length = 100)
-    private String componente;
-
-    /**
      * Mensaje descriptivo del evento.
      */
-    @Column(name = "mensaje", columnDefinition = "TEXT", nullable = false)
+    @Column(name = "mensaje", columnDefinition = "TEXT")
     private String mensaje;
 
     /**
-     * Metadatos adicionales en formato JSON.
-     * Puede incluir información contextual del evento.
+     * Usuario relacionado con el evento (opcional).
      */
-    @Column(name = "metadata", columnDefinition = "JSONB")
-    private String metadata;
-}
+    @Column(name = "usuario", length = 100)
+    private String usuario;
 
+    /**
+     * Dirección IP desde donde se generó el evento (opcional).
+     */
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
+    /**
+     * Información adicional en formato JSON (opcional).
+     */
+    @Column(name = "detalles", columnDefinition = "TEXT")
+    private String detalles;
+}

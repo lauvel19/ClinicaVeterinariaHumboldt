@@ -1,12 +1,18 @@
 package com.tuorg.veterinaria.gestionpacientes.service;
 
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Cell;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.element.Table;
 import com.tuorg.veterinaria.common.exception.BusinessException;
 import com.tuorg.veterinaria.common.exception.ResourceNotFoundException;
+import com.tuorg.veterinaria.common.pdf.PdfGenerator;
 import com.tuorg.veterinaria.gestionpacientes.dto.HistoriaClinicaResponse;
 import com.tuorg.veterinaria.gestionpacientes.dto.RegistroMedicoRequest;
 import com.tuorg.veterinaria.gestionpacientes.dto.RegistroMedicoResponse;
 import com.tuorg.veterinaria.gestionpacientes.dto.VacunacionResponse;
 import com.tuorg.veterinaria.gestionpacientes.model.HistoriaClinica;
+import com.tuorg.veterinaria.gestionpacientes.model.Paciente;
 import com.tuorg.veterinaria.gestionpacientes.model.RegistroMedico;
 import com.tuorg.veterinaria.gestionpacientes.repository.HistoriaClinicaRepository;
 import com.tuorg.veterinaria.gestionpacientes.repository.RegistroMedicoRepository;
@@ -17,10 +23,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
 import java.util.List;
-import java.nio.charset.StandardCharsets;
-import java.text.Normalizer;
-import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
 /**
  * Servicio para la gestión de historias clínicas.
@@ -35,34 +40,21 @@ import java.time.format.DateTimeFormatter;
 public class HistoriaClinicaService {
 
     private static final String ENTIDAD_HISTORIA_CLINICA = "HistoriaClinica";
-    private static final String PDF_TEXT_END = ") Tj";
-    private static final String PDF_XREF_FORMAT = "%010d %05d n";
-    private static final String PDF_NEWLINE = "\n";
 
-    /**
-     * Repositorio de historias clínicas.
-     */
     private final HistoriaClinicaRepository historiaClinicaRepository;
-
-    /**
-     * Repositorio de registros médicos.
-     */
     private final RegistroMedicoRepository registroMedicoRepository;
     private final UsuarioRepository usuarioRepository;
+    private final PdfGenerator pdfGenerator;
 
-    /**
-     * Constructor con inyección de dependencias.
-     * 
-     * @param historiaClinicaRepository Repositorio de historias clínicas
-     * @param registroMedicoRepository Repositorio de registros médicos
-     */
     @Autowired
     public HistoriaClinicaService(HistoriaClinicaRepository historiaClinicaRepository,
                                   RegistroMedicoRepository registroMedicoRepository,
-                                  UsuarioRepository usuarioRepository) {
+                                  UsuarioRepository usuarioRepository,
+                                  PdfGenerator pdfGenerator) {
         this.historiaClinicaRepository = historiaClinicaRepository;
         this.registroMedicoRepository = registroMedicoRepository;
         this.usuarioRepository = usuarioRepository;
+        this.pdfGenerator = pdfGenerator;
     }
 
     /**
@@ -185,88 +177,144 @@ public class HistoriaClinicaService {
     }
 
     /**
-     * Exporta la historia clínica como PDF sin dependencias externas (PDF mínimo).
+     * Exporta la historia clínica como PDF profesional usando iText.
      *
-     * Genera un PDF de una página con texto básico usando sintaxis PDF directa.
+     * Genera un PDF completo con formato profesional, logo de la clínica,
+     * todos los registros médicos, tratamientos, diagnósticos,
+     * signos vitales e insumos utilizados.
      */
     @Transactional(readOnly = true)
     public byte[] exportarPDF(Long historiaId) {
-        HistoriaClinica historia = historiaClinicaRepository.findById(historiaId)
-                .orElseThrow(() -> new ResourceNotFoundException(ENTIDAD_HISTORIA_CLINICA, "id", historiaId));
+        try {
+            HistoriaClinica historia = historiaClinicaRepository.findById(historiaId)
+                    .orElseThrow(() -> new ResourceNotFoundException(ENTIDAD_HISTORIA_CLINICA, "id", historiaId));
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-        String titulo = "Historia Clinica";
-        String linea1 = "ID Historia: " + historia.getIdHistoria();
-        String linea2 = "Paciente: " + normalize(historia.getPaciente().getNombre()) + " (ID " + historia.getPaciente().getIdPaciente() + ")";
-        String linea3 = "Apertura: " + (historia.getFechaApertura() != null ? historia.getFechaApertura().format(formatter) : "N/D");
-        String resumenTitulo = "Resumen:";
-        String resumen = historia.getResumen() != null ? normalize(historia.getResumen()) : "Sin resumen registrado.";
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            Document document = pdfGenerator.initDocument(baos);
 
-        // Contenido del stream (texto)
-        StringBuilder content = new StringBuilder();
-        content.append("BT\n");
-        content.append("/F1 18 Tf 50 750 Td (").append(escapePdf(titulo)).append(PDF_TEXT_END).append("\n");
-        content.append("/F1 12 Tf 0 -30 Td (").append(escapePdf(linea1)).append(PDF_TEXT_END).append("\n");
-        content.append("0 -18 Td (").append(escapePdf(linea2)).append(PDF_TEXT_END).append("\n");
-        content.append("0 -18 Td (").append(escapePdf(linea3)).append(PDF_TEXT_END).append("\n");
-        content.append("/F1 14 Tf 0 -24 Td (").append(escapePdf(resumenTitulo)).append(PDF_TEXT_END).append("\n");
-        // Resumen en líneas simples de 90 chars
-        int wrap = 90;
-        int idx = 0;
-        while (idx < resumen.length()) {
-            int end = Math.min(idx + wrap, resumen.length());
-            String slice = resumen.substring(idx, end);
-            content.append("/F1 12 Tf 0 -16 Td (").append(escapePdf(slice)).append(PDF_TEXT_END).append("\n");
-            idx = end;
+            // ENCABEZADO CON LOGO
+            document.add(pdfGenerator.createHeader("HISTORIA CLÍNICA", "Registro Médico Veterinario"));
+            document.add(pdfGenerator.createSeparator());
+
+            // INFORMACIÓN DEL PACIENTE
+            document.add(pdfGenerator.createSectionTitle("INFORMACIÓN DEL PACIENTE"));
+            
+            Paciente paciente = historia.getPaciente();
+            document.add(pdfGenerator.createText("ID Historia", String.valueOf(historia.getIdHistoria())));
+            document.add(pdfGenerator.createText("Paciente", paciente.getNombre()));
+            document.add(pdfGenerator.createText("Especie", paciente.getEspecie()));
+            document.add(pdfGenerator.createText("Raza", paciente.getRaza()));
+            if (paciente.getFechaNacimiento() != null) {
+                document.add(pdfGenerator.createText("Fecha de Nacimiento", paciente.getFechaNacimiento().toString()));
+            }
+            document.add(pdfGenerator.createText("Sexo", paciente.getSexo()));
+            if (paciente.getPesoKg() != null) {
+                document.add(pdfGenerator.createText("Peso", paciente.getPesoKg() + " kg"));
+            }
+            
+            if (paciente.getCliente() != null) {
+                document.add(pdfGenerator.createText("Propietario", 
+                    paciente.getCliente().getNombre() + " " + paciente.getCliente().getApellido()));
+                document.add(pdfGenerator.createText("Teléfono", paciente.getCliente().getTelefono()));
+            }
+            
+            document.add(pdfGenerator.createText("Fecha de Apertura", 
+                pdfGenerator.formatDate(historia.getFechaApertura())));
+            
+            // RESUMEN DE LA HISTORIA
+            if (historia.getResumen() != null && !historia.getResumen().isEmpty()) {
+                document.add(pdfGenerator.createSubtitle("Resumen General"));
+                document.add(new Paragraph(historia.getResumen()).setFontSize(10));
+            }
+
+            // REGISTROS MÉDICOS
+            List<RegistroMedico> registros = registroMedicoRepository
+                    .findByHistoriaIdHistoriaOrderByFechaDesc(historiaId);
+            
+            if (!registros.isEmpty()) {
+                document.add(pdfGenerator.createSectionTitle("REGISTROS MÉDICOS"));
+                
+                for (RegistroMedico reg : registros) {
+                    // Subtítulo de registro
+                    document.add(pdfGenerator.createSubtitle(
+                        "Registro #" + reg.getIdRegistro() + " - " + pdfGenerator.formatDate(reg.getFecha())));
+                    
+                    // Veterinario
+                    if (reg.getVeterinario() != null) {
+                        document.add(pdfGenerator.createText("Veterinario", 
+                            reg.getVeterinario().getNombre() + " " + reg.getVeterinario().getApellido() +
+                            (reg.getVeterinario().getEspecialidad() != null ? 
+                                " - " + reg.getVeterinario().getEspecialidad() : "")));
+                    }
+                    
+                    // Motivo
+                    if (reg.getMotivo() != null && !reg.getMotivo().isEmpty()) {
+                        document.add(pdfGenerator.createText("Motivo de Consulta", reg.getMotivo()));
+                    }
+                    
+                    // Diagnóstico
+                    if (reg.getDiagnostico() != null && !reg.getDiagnostico().isEmpty()) {
+                        document.add(pdfGenerator.createText("Diagnóstico", reg.getDiagnostico()));
+                    }
+                    
+                    // Tratamiento
+                    if (reg.getTratamiento() != null && !reg.getTratamiento().isEmpty()) {
+                        document.add(pdfGenerator.createText("Tratamiento", reg.getTratamiento()));
+                    }
+                    
+                    // Signos Vitales (Tabla)
+                    if (reg.getSignosVitales() != null && !reg.getSignosVitales().isEmpty()) {
+                        document.add(new Paragraph("Signos Vitales:").setBold().setFontSize(10).setMarginTop(5));
+                        Table signosTable = pdfGenerator.createTable(2, 2);
+                        signosTable.addHeaderCell(pdfGenerator.createHeaderCell("Parámetro"));
+                        signosTable.addHeaderCell(pdfGenerator.createHeaderCell("Valor"));
+                        
+                        for (Map.Entry<String, Object> entry : reg.getSignosVitales().entrySet()) {
+                            signosTable.addCell(pdfGenerator.createDataCell(entry.getKey()));
+                            signosTable.addCell(pdfGenerator.createDataCell(String.valueOf(entry.getValue())));
+                        }
+                        document.add(signosTable);
+                    }
+                    
+                    // Insumos/Medicamentos Utilizados (Tabla)
+                    if (reg.getInsumosUsados() != null && !reg.getInsumosUsados().isEmpty()) {
+                        document.add(new Paragraph("Medicamentos/Insumos Utilizados:").setBold().setFontSize(10).setMarginTop(5));
+                        Table insumosTable = pdfGenerator.createTable(3, 1, 1);
+                        insumosTable.addHeaderCell(pdfGenerator.createHeaderCell("Nombre"));
+                        insumosTable.addHeaderCell(pdfGenerator.createHeaderCell("Cantidad"));
+                        insumosTable.addHeaderCell(pdfGenerator.createHeaderCell("Unidad"));
+                        
+                        for (Map<String, Object> insumo : reg.getInsumosUsados()) {
+                            String nombre = insumo.containsKey("nombre") ? String.valueOf(insumo.get("nombre")) : "N/D";
+                            String cantidad = insumo.containsKey("cantidad") ? String.valueOf(insumo.get("cantidad")) : "N/D";
+                            String unidad = insumo.containsKey("unidad") ? String.valueOf(insumo.get("unidad")) : "N/D";
+                            
+                            insumosTable.addCell(pdfGenerator.createDataCell(nombre));
+                            insumosTable.addCell(pdfGenerator.createDataCell(cantidad));
+                            insumosTable.addCell(pdfGenerator.createDataCell(unidad));
+                        }
+                        document.add(insumosTable);
+                    }
+                    
+                    // Separador entre registros
+                    document.add(pdfGenerator.createSeparator());
+                }
+            } else {
+                document.add(new Paragraph("No hay registros médicos disponibles.")
+                    .setFontSize(10)
+                    .setItalic()
+                    .setMarginTop(10));
+            }
+
+            // PIE DE PÁGINA
+            document.add(pdfGenerator.createFooter());
+
+            document.close();
+            return baos.toByteArray();
+            
+        } catch (Exception e) {
+            throw new BusinessException("Error al generar PDF de historia clínica: " + e.getMessage());
         }
-        content.append("ET\n");
-
-        byte[] streamBytes = content.toString().getBytes(StandardCharsets.US_ASCII);
-        StringBuilder pdf = new StringBuilder();
-        pdf.append("%PDF-1.4\n");
-
-        // Objetos y offsets
-        int xref1 = pdf.length();
-        pdf.append("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
-        int xref2 = pdf.length();
-        pdf.append("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
-        int xref3 = pdf.length();
-        pdf.append("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n");
-        int xref4 = pdf.length();
-        pdf.append("4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n");
-        int xref5 = pdf.length();
-        pdf.append("5 0 obj\n<< /Length ").append(streamBytes.length).append(" >>\nstream\n");
-        pdf.append(content);
-        pdf.append("endstream\nendobj\n");
-
-        // xref table
-        int xrefStart = pdf.length();
-        pdf.append("xref").append(PDF_NEWLINE);
-        pdf.append("0 6").append(PDF_NEWLINE);
-        pdf.append(String.format("%010d %05d f ", 0, 65535)).append(PDF_NEWLINE);
-        pdf.append(String.format(PDF_XREF_FORMAT, xref1, 00000)).append(" ").append(PDF_NEWLINE);
-        pdf.append(String.format(PDF_XREF_FORMAT, xref2, 00000)).append(" ").append(PDF_NEWLINE);
-        pdf.append(String.format(PDF_XREF_FORMAT, xref3, 00000)).append(" ").append(PDF_NEWLINE);
-        pdf.append(String.format(PDF_XREF_FORMAT, xref4, 00000)).append(" ").append(PDF_NEWLINE);
-        pdf.append(String.format(PDF_XREF_FORMAT, xref5, 00000)).append(" ").append(PDF_NEWLINE);
-
-        pdf.append("trailer\n<< /Size 6 /Root 1 0 R >>\n");
-        pdf.append("startxref\n").append(xrefStart).append("\n%%EOF");
-
-        return pdf.toString().getBytes(StandardCharsets.US_ASCII);
-    }
-
-    private String escapePdf(String text) {
-        return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").replace("\r", " ").replace("\n", " ");
-    }
-
-    private String normalize(String text) {
-        if (text == null) return "";
-        // Remover acentos para evitar caracteres no representables en el PDF mínimo
-        String normalized = Normalizer.normalize(text, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
-        // Reemplazos comunes adicionales
-        normalized = normalized.replace("ñ", "n").replace("Ñ", "N");
-        return normalized;
     }
 
     private HistoriaClinicaResponse mapHistoria(HistoriaClinica historia) {

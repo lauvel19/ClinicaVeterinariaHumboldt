@@ -178,7 +178,23 @@ export const VeterinarianAgendaPage = () => {
         </div>
       </div>
 
-      {view === "mes" ? <MonthCalendar events={events} currentDate={currentDate} onSelectDay={setCurrentDate} /> : null}
+      {view === "mes" ? (
+        <MonthCalendar
+          events={events}
+          currentDate={currentDate}
+          onSelectDay={setCurrentDate}
+          onSelectEvent={(event) => {
+            // Buscar la cita original en las citas
+            const citaCompleta = data?.find((c) => c.idCita === event.id);
+            if (citaCompleta) {
+              setSelectedCita(citaCompleta);
+            }
+          }}
+          isVeterinario={isVeterinario}
+          setSelectedDate={setSelectedDate}
+          setIsCreateCitaModalOpen={setIsCreateCitaModalOpen}
+        />
+      ) : null}
 
       <section className="rounded-2xl bg-white p-4 shadow-soft sm:rounded-3xl sm:p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -268,9 +284,13 @@ interface MonthCalendarProps {
   readonly events: AgendaEvent[];
   readonly currentDate: dayjs.Dayjs;
   readonly onSelectDay: (date: dayjs.Dayjs) => void;
+  readonly onSelectEvent?: (event: AgendaEvent) => void;
+  readonly isVeterinario?: boolean;
+  readonly setSelectedDate?: (date: dayjs.Dayjs) => void;
+  readonly setIsCreateCitaModalOpen?: (open: boolean) => void;
 }
 
-const MonthCalendar = ({ events, currentDate, onSelectDay }: MonthCalendarProps) => {
+const MonthCalendar = ({ events, currentDate, onSelectDay, onSelectEvent, isVeterinario, setSelectedDate, setIsCreateCitaModalOpen }: MonthCalendarProps) => {
   const startOfMonth = currentDate.startOf("month");
   const startCalendar = startOfMonth.startOf("week"); // arranca el lunes
   const days = Array.from({ length: 42 }, (_, index) => startCalendar.add(index, "day"));
@@ -301,8 +321,12 @@ const MonthCalendar = ({ events, currentDate, onSelectDay }: MonthCalendarProps)
               key={day.toString()}
               onClick={() => {
                 onSelectDay(day);
-                setSelectedDate(day);
-                setIsCreateCitaModalOpen(true);
+                // Para veterinarios, solo cambiar el día seleccionado para filtrar la lista
+                // Para secretarios/admin, abrir modal de creación de cita
+                if (!isVeterinario && setSelectedDate && setIsCreateCitaModalOpen) {
+                  setSelectedDate(day);
+                  setIsCreateCitaModalOpen(true);
+                }
               }}
               className={`flex min-h-[60px] flex-col rounded-lg border p-1.5 text-left transition-base sm:min-h-[90px] sm:rounded-2xl sm:p-3 ${
                 isCurrentMonth ? "border-gray-100 bg-gray-50 hover:border-primary/40 hover:bg-white" : "border-gray-50 bg-white/60 text-gray-300"
@@ -311,13 +335,19 @@ const MonthCalendar = ({ events, currentDate, onSelectDay }: MonthCalendarProps)
               <span className="text-[10px] font-semibold text-secondary sm:text-xs">{day.format("D")}</span>
               <div className="mt-1 flex flex-col gap-0.5 sm:mt-2 sm:gap-1">
                 {dayEvents.slice(0, 2).map((event) => (
-                  <span
+                  <button
                     key={event.id}
-                    className="hidden items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary sm:inline-flex sm:px-2 sm:text-[10px]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isVeterinario && onSelectEvent) {
+                        onSelectEvent(event);
+                      }
+                    }}
+                    className="hidden items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary hover:bg-primary/20 sm:inline-flex sm:px-2 sm:text-[10px]"
                   >
                     <span className="hidden sm:inline">{event.fecha.format("HH:mm")} · </span>
                     <span className="truncate">{event.paciente.split("•")[0]}</span>
-                  </span>
+                  </button>
                 ))}
                 {dayEvents.length > 0 && dayEvents.length <= 2 && (
                   <span className="hidden text-[9px] font-medium text-primary sm:inline sm:text-[10px]">

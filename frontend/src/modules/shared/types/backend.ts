@@ -30,6 +30,7 @@ export interface ApiPacienteResponse {
   readonly sexo: string | null;
   readonly pesoKg: string | null;
   readonly estadoSalud: string | null;
+  readonly fotoPerfil: string | null;
   readonly cliente: {
     readonly id: number;
     readonly nombre: string;

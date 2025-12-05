@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 
 /**
  * Pruebas unitarias para CitaService.
@@ -47,6 +48,12 @@ class CitaServiceTest {
 
     @Mock
     private UsuarioRepository usuarioRepository;
+
+    @Mock
+    private com.tuorg.veterinaria.gestionpacientes.repository.HistoriaClinicaRepository historiaClinicaRepository;
+
+    @Mock
+    private com.tuorg.veterinaria.gestionpacientes.repository.RegistroMedicoRepository registroMedicoRepository;
 
     @InjectMocks
     private CitaService citaService;
@@ -90,10 +97,14 @@ class CitaServiceTest {
     @Test
     @DisplayName("Programar cita exitosa: debe crear cita en estado PROGRAMADA")
     void programarCitaExitoso_DeberiaCrearCitaProgramada() {
-        // Arrange
+        // Arrange - Use 30-minute interval time
+        LocalDateTime fechaValida = LocalDateTime.now().plusDays(1).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        citaRequest.setFechaHora(fechaValida);
+        cita.setFechaHora(fechaValida);
+        
         when(pacienteRepository.findById(1L)).thenReturn(Optional.of(paciente));
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(veterinario));
-        when(citaRepository.existeCitaEnRango(anyLong(), any(LocalDateTime.class), any(LocalDateTime.class), anyString()))
+        lenient().when(citaRepository.existeCitaEnRango(anyLong(), any(LocalDateTime.class), any(LocalDateTime.class), anyString()))
                 .thenReturn(false);
         when(citaRepository.save(any(Cita.class))).thenReturn(cita);
 
@@ -115,13 +126,17 @@ class CitaServiceTest {
     void programarCitaHoraPasado_DeberiaLanzarExcepcion() {
         // Arrange
         citaRequest.setFechaHora(LocalDateTime.now().minusHours(1));
+        
+        when(pacienteRepository.findById(1L)).thenReturn(Optional.of(paciente));
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(veterinario));
 
         // Act & Assert
         assertThatThrownBy(() -> citaService.programar(citaRequest))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("No se puede programar una cita en el pasado");
+                .hasMessageContaining("fecha pasada");
 
-        verify(pacienteRepository, never()).findById(any());
+        verify(pacienteRepository).findById(1L);
+        verify(usuarioRepository).findById(1L);
     }
 
     @Test
@@ -170,7 +185,7 @@ class CitaServiceTest {
         when(citaRepository.findById(1L)).thenReturn(Optional.of(cita));
 
         // Act & Assert
-        assertThatThrownBy(() -> citaService.completar(1L))
+        assertThatThrownBy(() -> citaService.completar(1L, null))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Solo se pueden completar citas en estado PROGRAMADA");
 
@@ -185,13 +200,27 @@ class CitaServiceTest {
         cita.setEstado(AppConstants.ESTADO_CITA_PROGRAMADA);
         Cita citaCompletada = new Cita();
         citaCompletada.setIdCita(1L);
+        citaCompletada.setPaciente(paciente);
+        citaCompletada.setVeterinario(veterinario);
         citaCompletada.setEstado(AppConstants.ESTADO_CITA_REALIZADA);
 
+        // Mock HistoriaClinica
+        com.tuorg.veterinaria.gestionpacientes.model.HistoriaClinica historiaClinica = 
+            new com.tuorg.veterinaria.gestionpacientes.model.HistoriaClinica();
+        historiaClinica.setIdHistoria(1L);
+        historiaClinica.setPaciente(paciente);
+
+        com.tuorg.veterinaria.gestionpacientes.model.RegistroMedico registroMedico = 
+            new com.tuorg.veterinaria.gestionpacientes.model.RegistroMedico();
+        registroMedico.setIdRegistro(1L);
+
         when(citaRepository.findById(1L)).thenReturn(Optional.of(cita));
+        when(historiaClinicaRepository.findByPacienteId(1L)).thenReturn(Optional.of(historiaClinica));
+        when(registroMedicoRepository.save(any())).thenReturn(registroMedico);
         when(citaRepository.save(any(Cita.class))).thenReturn(citaCompletada);
 
         // Act
-        CitaResponse response = citaService.completar(1L);
+        CitaResponse response = citaService.completar(1L, null);
 
         // Assert
         assertThat(response).isNotNull();

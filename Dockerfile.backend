@@ -1,0 +1,62 @@
+# =============================
+# DOCKERFILE - BACKEND SPRING BOOT
+# =============================
+# Build: docker build -f Dockerfile.backend -t veterinaria-backend .
+# Run: docker run -p 8080:8080 veterinaria-backend
+# =============================
+
+# =============================
+# STAGE 1 — Build Backend
+# =============================
+FROM maven:3.9.5-eclipse-temurin-17 AS build
+WORKDIR /app
+
+# Copiar pom.xml primero para cachear dependencias
+COPY pom.xml ./
+RUN mvn dependency:go-offline -B
+
+# Copiar código fuente
+COPY src ./src
+
+# Compilar el backend (sin tests para acelerar)
+RUN mvn clean package -DskipTests -B
+
+# =============================
+# STAGE 2 — Runtime
+# =============================
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+
+# Instalar curl y netcat para healthcheck
+RUN apk add --no-cache curl netcat-openbsd
+
+# Crear usuario no-root para seguridad
+RUN addgroup -g 1000 appgroup && \
+    adduser -u 1000 -G appgroup -D appuser
+
+# Crear directorios necesarios
+RUN mkdir -p /app/uploads /app/logs && \
+    chown -R appuser:appgroup /app
+
+# Copiar JAR generado
+COPY --from=build /app/target/*.jar app.jar
+RUN chown appuser:appgroup app.jar
+
+# Variables de entorno por defecto
+ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+ENV SERVER_PORT=8080
+ENV TZ=America/Bogota
+
+# Cambiar a usuario no-root
+USER appuser
+
+# Exponer puerto
+EXPOSE 8080
+
+# Healthcheck - usa netcat para verificar que el puerto responde
+# (el endpoint /api/actuator/health requiere autenticación)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/auth/login 2>&1 | grep -q "405\|400\|200" || curl -sf http://localhost:8080/ > /dev/null 2>&1 || nc -z localhost 8080 || exit 1
+
+# Comando de inicio
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar /app/app.jar"]

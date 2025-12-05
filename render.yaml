@@ -1,0 +1,93 @@
+# ============================================
+# RENDER BLUEPRINT - CLÍNICA VETERINARIA HUMBOLDT
+# ============================================
+# Este archivo configura el despliegue automático en Render
+# Documentación: https://render.com/docs/blueprint-spec
+# ============================================
+
+databases:
+  # ============================================
+  # BASE DE DATOS POSTGRESQL
+  # ============================================
+  - name: veterinaria-db
+    plan: free  # Cambiar a 'starter' o superior para producción
+    databaseName: veterinaria_db
+    user: vet_admin
+    region: oregon  # Opciones: oregon, ohio, frankfurt, singapore
+    postgresMajorVersion: "15"
+    ipAllowList: []  # Permite conexiones solo desde servicios de Render
+
+services:
+  # ============================================
+  # BACKEND - SPRING BOOT API
+  # ============================================
+  - type: web
+    name: veterinaria-backend
+    runtime: docker
+    plan: free  # Cambiar a 'starter' para evitar spin-down
+    region: oregon
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    # Health check endpoint dedicado
+    healthCheckPath: /api/health
+    envVars:
+      # Base de datos - La URL se procesa automáticamente por RenderDatabaseUrlProcessor
+      - key: DATABASE_URL
+        fromDatabase:
+          name: veterinaria-db
+          property: connectionString
+      # JWT Secret - DEBE tener al menos 64 caracteres para HS512
+      # Esta clave es segura y tiene 88 caracteres (704 bits)
+      - key: APP_JWT_SECRET
+        value: "VeterinariaHumboldtSecretKeyForJWTTokenGeneration2024ThisKeyMustBeAtLeast64CharactersLong!"
+      - key: JWT_SECRET
+        value: "VeterinariaHumboldtSecretKeyForJWTTokenGeneration2024ThisKeyMustBeAtLeast64CharactersLong!"
+      # Spring Profile - usar perfil render
+      - key: SPRING_PROFILES_ACTIVE
+        value: render
+      # Flyway
+      - key: SPRING_FLYWAY_ENABLED
+        value: "true"
+      - key: SPRING_FLYWAY_BASELINE_ON_MIGRATE
+        value: "true"
+      # JPA
+      - key: SPRING_JPA_HIBERNATE_DDL_AUTO
+        value: update
+      - key: SPRING_JPA_SHOW_SQL
+        value: "false"
+      # CORS - URLs del frontend permitidas
+      - key: APP_CORS_ALLOWED_ORIGINS
+        value: "https://veterinaria-frontend-kru7.onrender.com,https://veterinaria-frontend.onrender.com,http://localhost:3000,http://localhost:5173"
+      # Java options para optimizar memoria en plan free
+      - key: JAVA_OPTS
+        value: "-Xms128m -Xmx256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+      # Puerto (Render asigna automáticamente)
+      - key: PORT
+        value: "8080"
+
+  # ============================================
+  # FRONTEND - REACT/VITE (SITIO ESTÁTICO)
+  # ============================================
+  - type: web
+    name: veterinaria-frontend
+    runtime: static
+    # Nota: los sitios estáticos no requieren plan, son gratuitos por defecto
+    # Nota: los sitios estáticos no soportan 'region', se distribuyen globalmente via CDN
+    buildCommand: cd frontend && npm ci --legacy-peer-deps && npm run build
+    staticPublishPath: frontend/dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache, no-store, must-revalidate
+    routes:
+      # SPA fallback - todas las rutas van a index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # URL del backend
+      - key: VITE_API_URL
+        value: "https://veterinaria-backend-lr87.onrender.com/api"

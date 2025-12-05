@@ -1,0 +1,61 @@
+# ============================================
+# DOCKER COMPOSE - DESARROLLO LOCAL
+# ============================================
+# Solo levanta la base de datos para desarrollo local
+# Backend y Frontend se ejecutan localmente
+# ============================================
+# Ejecutar: docker-compose -f docker-compose.dev.yml up -d
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # BASE DE DATOS POSTGRESQL
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: veterinaria-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: veterinaria_db
+      POSTGRES_USER: vet_admin
+      POSTGRES_PASSWORD: Petrico123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - veterinaria-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vet_admin -d veterinaria_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # ADMINER - Administrador de BD (opcional)
+  # ============================================
+  adminer:
+    image: adminer:latest
+    container_name: veterinaria-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    networks:
+      - veterinaria-dev-network
+    depends_on:
+      - postgres
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha-dark
+
+networks:
+  veterinaria-dev-network:
+    driver: bridge
+
+volumes:
+  postgres_dev_data:
+    name: veterinaria-postgres-dev-data

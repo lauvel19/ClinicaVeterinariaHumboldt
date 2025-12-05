@@ -34,6 +34,9 @@ public class PacienteUpdateRequest {
     @Schema(description = "Estado de salud", example = "Recuperación")
     private String estadoSalud;
 
+    @Schema(description = "URL o path de la foto de perfil", example = "/uploads/pacientes/paciente_1_abc123.jpg")
+    private String fotoPerfil;
+
     @Schema(description = "Identificador del cliente dueño", example = "4")
     private Long clienteId;
 

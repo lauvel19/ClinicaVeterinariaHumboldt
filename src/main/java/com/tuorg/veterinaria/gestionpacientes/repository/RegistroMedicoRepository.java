@@ -28,5 +28,14 @@ public interface RegistroMedicoRepository extends JpaRepository<RegistroMedico, 
      */
     @Query("SELECT rm FROM RegistroMedico rm WHERE rm.historia.idHistoria = :historiaId")
     List<RegistroMedico> findByHistoriaId(@Param("historiaId") Long historiaId);
+
+    /**
+     * Busca registros médicos por historia clínica ordenados por fecha descendente.
+     * 
+     * @param historiaId ID de la historia clínica
+     * @return Lista de registros médicos ordenados de más reciente a más antiguo
+     */
+    @Query("SELECT rm FROM RegistroMedico rm WHERE rm.historia.idHistoria = :historiaId ORDER BY rm.fecha DESC")
+    List<RegistroMedico> findByHistoriaIdHistoriaOrderByFechaDesc(@Param("historiaId") Long historiaId);
 }
 

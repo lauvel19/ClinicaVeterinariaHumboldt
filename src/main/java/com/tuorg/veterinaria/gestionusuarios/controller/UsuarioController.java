@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -43,11 +44,13 @@ public class UsuarioController {
 
     /**
      * Crea un nuevo usuario.
+     * Solo ADMIN puede crear usuarios.
      * 
      * @param usuario Usuario a crear
      * @return Respuesta con el usuario creado
      */
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UsuarioResponse>> crear(@Valid @RequestBody UsuarioRequest request) {
         UsuarioResponse usuarioCreado = usuarioService.crear(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -56,11 +59,13 @@ public class UsuarioController {
 
     /**
      * Obtiene un usuario por su ID.
+     * Solo ADMIN puede ver usuarios.
      * 
      * @param id ID del usuario
      * @return Respuesta con el usuario
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UsuarioResponse>> obtener(@PathVariable Long id) {
         UsuarioResponse usuario = usuarioService.obtener(id);
         return ResponseEntity.ok(ApiResponse.success("Usuario obtenido exitosamente", usuario));
@@ -68,10 +73,12 @@ public class UsuarioController {
 
     /**
      * Obtiene todos los usuarios.
+     * Solo ADMIN puede ver todos los usuarios.
      * 
      * @return Respuesta con la lista de usuarios
      */
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<UsuarioResponse>>> obtenerTodos() {
         List<UsuarioResponse> usuarios = usuarioService.obtenerTodos();
         return ResponseEntity.ok(ApiResponse.success("Usuarios obtenidos exitosamente", usuarios));
@@ -79,12 +86,14 @@ public class UsuarioController {
 
     /**
      * Actualiza un usuario existente.
+     * Solo ADMIN puede actualizar usuarios.
      * 
      * @param id ID del usuario
      * @param usuario Datos actualizados del usuario
      * @return Respuesta con el usuario actualizado
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UsuarioResponse>> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody UsuarioUpdateRequest request) {
@@ -94,11 +103,13 @@ public class UsuarioController {
 
     /**
      * Elimina un usuario (desactiva).
+     * Solo ADMIN puede eliminar usuarios.
      * 
      * @param id ID del usuario
      * @return Respuesta de confirmación
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> eliminar(@PathVariable Long id) {
         usuarioService.eliminar(id);
         return ResponseEntity.ok(ApiResponse.success("Usuario eliminado exitosamente"));
@@ -106,10 +117,12 @@ public class UsuarioController {
 
     /**
      * Obtiene todos los veterinarios activos.
+     * Accesible para usuarios autenticados que necesiten ver la lista de veterinarios.
      * 
      * @return Respuesta con la lista de veterinarios activos
      */
     @GetMapping("/veterinarios")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<UsuarioResponse>>> obtenerVeterinarios() {
         List<UsuarioResponse> veterinarios = usuarioService.obtenerVeterinariosActivos();
         return ResponseEntity.ok(ApiResponse.success("Veterinarios obtenidos exitosamente", veterinarios));

@@ -293,9 +293,17 @@ const PatientCard = ({ paciente, onViewDetail }: PatientCardProps) => {
       {/* Header con avatar y especie */}
       <div className="flex items-start gap-3">
         <div className="relative">
-          <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${config.bgColor} ${config.textColor} border-2 ${config.borderColor} text-xl font-bold shadow-sm`}>
-            {config.icon}
-          </div>
+          {paciente.fotoPerfil ? (
+            <img
+              src={`http://localhost:8080/api${paciente.fotoPerfil}`}
+              alt={paciente.nombre}
+              className="h-14 w-14 rounded-2xl object-cover border-2 border-white shadow-sm"
+            />
+          ) : (
+            <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${config.bgColor} ${config.textColor} border-2 ${config.borderColor} text-xl font-bold shadow-sm`}>
+              {config.icon}
+            </div>
+          )}
           {edadNumero < 1 && (
             <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-yellow-400 text-[10px] font-bold text-white">
               ⭐

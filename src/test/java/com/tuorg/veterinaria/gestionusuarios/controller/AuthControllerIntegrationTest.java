@@ -151,5 +151,76 @@ class AuthControllerIntegrationTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @DisplayName("POST /api/auth/login: campos vacíos debe retornar error 400")
+    void loginCamposVacios_DeberiaRetornar400() throws Exception {
+        // Arrange
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setUsername("");
+        loginRequest.setPassword("");
+
+        // Act & Assert
+        // NOTA: MockMvc no aplica automáticamente el context-path, por lo que usamos /auth/login en lugar de /api/auth/login
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/login: usuario inactivo debe retornar error 400")
+    void loginUsuarioInactivo_DeberiaRetornar400() throws Exception {
+        // Arrange - Crear usuario inactivo
+        Usuario usuarioInactivo = new Usuario();
+        usuarioInactivo.setUsername("usuarioInactivo");
+        usuarioInactivo.setPasswordHash(passwordEncoder.encode("password123"));
+        usuarioInactivo.setCorreo("inactivo@example.com");
+        usuarioInactivo.setNombre("Usuario");
+        usuarioInactivo.setApellido("Inactivo");
+        usuarioInactivo.setRol(rol);
+        usuarioInactivo.setActivo(false); // Usuario inactivo
+        usuarioRepository.save(usuarioInactivo);
+
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setUsername("usuarioInactivo");
+        loginRequest.setPassword("password123");
+
+        // Act & Assert
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/login: múltiples intentos con credenciales incorrectas")
+    void loginMultiplesIntentosFallidos_DeberiaRetornar400() throws Exception {
+        // Arrange
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setUsername("testuser");
+        loginRequest.setPassword("passwordIncorrecta");
+
+        // Act & Assert - Primer intento fallido
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isBadRequest());
+
+        // Segundo intento fallido - debería seguir retornando 400
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isBadRequest());
+
+        // Tercer intento con credenciales correctas - debería funcionar
+        loginRequest.setPassword("password123");
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.token").exists());
+    }
 }
 
