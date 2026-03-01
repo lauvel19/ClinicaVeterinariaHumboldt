@@ -60,3 +60,6 @@ uploads/
 application-local.yml
 application-local.properties
 
+# Node dependencies
+**/node_modules/
+node_modules/
