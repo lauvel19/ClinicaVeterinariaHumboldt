@@ -2,6 +2,7 @@ package com.tuorg.veterinaria;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 /**
  * Clase principal de la aplicación Spring Boot.
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * monolito-modular del sistema clínico veterinario.
  */
 @SpringBootApplication
+@EnableJpaAuditing
 public class VeterinariaApplication {
 
     /**
