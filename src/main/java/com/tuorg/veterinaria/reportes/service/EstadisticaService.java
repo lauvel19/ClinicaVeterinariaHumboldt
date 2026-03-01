@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -49,11 +50,11 @@ public class EstadisticaService {
      */
     @Transactional
     public Estadistica calcular(String nombre, LocalDate periodoInicio, LocalDate periodoFin) {
-        // TODO: Implementar cálculo real de estadísticas según el nombre
-        // Por ahora retornamos una estadística con valor 0
+        BigDecimal valorCalculado = calcularValorSegunNombre(nombre, periodoInicio, periodoFin);
+
         Estadistica estadistica = new Estadistica();
         estadistica.setNombre(nombre);
-        estadistica.setValor(BigDecimal.ZERO);
+        estadistica.setValor(valorCalculado);
         estadistica.setPeriodoInicio(periodoInicio);
         estadistica.setPeriodoFin(periodoFin);
         
@@ -70,10 +71,69 @@ public class EstadisticaService {
     @Transactional
     public List<Estadistica> calcularEstadisticasParaReporte(String tipoReporte, Map<String, Object> parametros) {
         List<Estadistica> estadisticas = new ArrayList<>();
-        
-        // TODO: Implementar cálculos reales según el tipo de reporte
-        // Por ahora retornamos una lista vacía
+
+        LocalDate periodoInicio = extraerFecha(parametros, "fechaInicio");
+        LocalDate periodoFin = extraerFecha(parametros, "fechaFin");
+
+        if (periodoInicio == null) {
+            periodoInicio = LocalDate.now().minusDays(30);
+        }
+        if (periodoFin == null) {
+            periodoFin = LocalDate.now();
+        }
+
+        Estadistica diasPeriodo = new Estadistica();
+        diasPeriodo.setNombre("DIAS_PERIODO");
+        diasPeriodo.setValor(BigDecimal.valueOf(Math.max(0, ChronoUnit.DAYS.between(periodoInicio, periodoFin) + 1)));
+        diasPeriodo.setPeriodoInicio(periodoInicio);
+        diasPeriodo.setPeriodoFin(periodoFin);
+        estadisticas.add(diasPeriodo);
+
+        List<Estadistica> historicasTipo = estadisticaRepository.findByNombre(tipoReporte);
+        BigDecimal acumulado = historicasTipo.stream()
+                .map(Estadistica::getValor)
+                .filter(valor -> valor != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Estadistica acumuladoHistorico = new Estadistica();
+        acumuladoHistorico.setNombre("ACUMULADO_HISTORICO_" + tipoReporte);
+        acumuladoHistorico.setValor(acumulado);
+        acumuladoHistorico.setPeriodoInicio(periodoInicio);
+        acumuladoHistorico.setPeriodoFin(periodoFin);
+        estadisticas.add(acumuladoHistorico);
+
         return estadisticas;
+    }
+
+    private BigDecimal calcularValorSegunNombre(String nombre, LocalDate periodoInicio, LocalDate periodoFin) {
+        if (periodoInicio == null || periodoFin == null || periodoFin.isBefore(periodoInicio)) {
+            return BigDecimal.ZERO;
+        }
+
+        if ("DIAS_PERIODO".equalsIgnoreCase(nombre)) {
+            return BigDecimal.valueOf(ChronoUnit.DAYS.between(periodoInicio, periodoFin) + 1);
+        }
+
+        List<Estadistica> historicas = estadisticaRepository.findByNombre(nombre);
+        if (historicas.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        return historicas.stream()
+                .map(Estadistica::getValor)
+                .filter(valor -> valor != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private LocalDate extraerFecha(Map<String, Object> parametros, String clave) {
+        if (parametros == null || !parametros.containsKey(clave) || parametros.get(clave) == null) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(String.valueOf(parametros.get(clave)));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

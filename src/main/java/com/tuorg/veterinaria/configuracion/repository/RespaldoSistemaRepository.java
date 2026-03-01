@@ -47,10 +47,9 @@ public interface RespaldoSistemaRepository extends JpaRepository<RespaldoSistema
     /**
      * Obtiene el último respaldo completado exitosamente.
      * 
-     * @return Último respaldo exitoso
+     * @return Último respaldo exitoso (envuelto en Optional)
      */
-    @Query("SELECT rs FROM RespaldoSistema rs WHERE rs.estado = 'COMPLETADO' ORDER BY rs.fechaRespaldo DESC LIMIT 1")
-    RespaldoSistema findUltimoRespaldoExitoso();
+    RespaldoSistema findFirstByEstadoOrderByFechaRespaldoDesc(EstadoRespaldo estado);
 
     /**
      * Obtiene respaldos en un rango de fechas.

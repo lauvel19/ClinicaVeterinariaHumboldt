@@ -19,9 +19,10 @@ import lombok.Setter;
 @Entity
 @Table(name = "auditoria_detallada", schema = "public",
     indexes = {
-        @Index(name = "idx_auditoria_fecha", columnList = "fecha_accion"),
         @Index(name = "idx_auditoria_usuario", columnList = "usuario_id"),
-        @Index(name = "idx_auditoria_entidad", columnList = "entidad,entidad_id")
+        @Index(name = "idx_auditoria_tipo_accion", columnList = "tipo_accion"),
+        @Index(name = "idx_auditoria_entidad", columnList = "entidad,entidad_id"),
+        @Index(name = "idx_auditoria_created_at", columnList = "created_at DESC")
     })
 @Getter
 @Setter

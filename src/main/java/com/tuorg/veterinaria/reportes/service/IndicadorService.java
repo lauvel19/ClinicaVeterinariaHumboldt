@@ -1,11 +1,15 @@
 package com.tuorg.veterinaria.reportes.service;
 
+import com.tuorg.veterinaria.common.exception.BusinessException;
+import com.tuorg.veterinaria.reportes.model.Estadistica;
 import com.tuorg.veterinaria.reportes.model.Indicador;
+import com.tuorg.veterinaria.reportes.repository.EstadisticaRepository;
 import com.tuorg.veterinaria.reportes.repository.IndicadorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -26,13 +30,20 @@ public class IndicadorService {
     private final IndicadorRepository indicadorRepository;
 
     /**
+     * Repositorio de estadísticas para análisis histórico.
+     */
+    private final EstadisticaRepository estadisticaRepository;
+
+    /**
      * Constructor con inyección de dependencias.
      * 
      * @param indicadorRepository Repositorio de indicadores
      */
     @Autowired
-    public IndicadorService(IndicadorRepository indicadorRepository) {
+    public IndicadorService(IndicadorRepository indicadorRepository,
+                            EstadisticaRepository estadisticaRepository) {
         this.indicadorRepository = indicadorRepository;
+        this.estadisticaRepository = estadisticaRepository;
     }
 
     /**
@@ -44,10 +55,28 @@ public class IndicadorService {
     @Transactional(readOnly = true)
     public String evaluarTendencia(Long indicadorId) {
         Indicador indicador = indicadorRepository.findById(indicadorId)
-                .orElseThrow(() -> new RuntimeException("Indicador no encontrado"));
-        
-        // TODO: Implementar evaluación real de tendencia comparando valores históricos
-        // Por ahora retornamos "estable"
+            .orElseThrow(() -> new BusinessException("Indicador no encontrado"));
+
+        BigDecimal valorActual = indicador.getValorActual() != null ? indicador.getValorActual() : BigDecimal.ZERO;
+        List<Estadistica> historicas = estadisticaRepository.findByNombre(indicador.getNombre());
+
+        if (historicas.isEmpty()) {
+            return "estable";
+        }
+
+        BigDecimal promedioHistorico = historicas.stream()
+                .map(Estadistica::getValor)
+                .filter(valor -> valor != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .divide(BigDecimal.valueOf(historicas.size()), 4, java.math.RoundingMode.HALF_UP);
+
+        int comparacion = valorActual.compareTo(promedioHistorico);
+        if (comparacion > 0) {
+            return "creciente";
+        }
+        if (comparacion < 0) {
+            return "decreciente";
+        }
         return "estable";
     }
 

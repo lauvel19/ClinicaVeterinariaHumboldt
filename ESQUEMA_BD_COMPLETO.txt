@@ -1,0 +1,818 @@
+================================================================================
+ESQUEMA DE BASE DE DATOS - CLÍNICA VETERINARIA HUMBOLDT
+Base de Datos: PostgreSQL 15.x
+================================================================================
+
+================================================================================
+1. LISTA DE TABLAS Y PROPÓSITOS
+================================================================================
+
+GESTIÓN DE USUARIOS Y AUTENTICACIÓN:
+- personas: Base abstracta con datos personales de todos los usuarios
+- roles: Define roles del sistema (ADMIN, VETERINARIO, SECRETARIO, CLIENTE)
+- permisos: Define permisos granulares del sistema
+- rol_permisos: Relación muchos a muchos entre roles y permisos
+- usuarios: Hereda de personas, contiene credenciales y login
+- clientes: Hereda de usuarios, propietarios de mascotas
+- usuarios_veterinarios: Hereda de usuarios, veterinarios profesionales
+- secretarios: Hereda de usuarios, secretarios administrativos
+- historial_acciones: Auditoría de acciones por usuario
+
+GESTIÓN DE PACIENTES Y CLÍNICA:
+- pacientes: Mascotas (perros/gatos) de los clientes
+- historias_clinicas: Historia clínica por paciente
+- registros_medicos: Registros médicos por cada consulta/cita
+- vacunaciones: Vacunas aplicadas a pacientes
+- desparasitaciones: Desparasitaciones aplicadas a pacientes
+
+GESTIÓN DE INVENTARIO:
+- proveedores: Suministradores de productos
+- productos: Inventario de productos/medicamentos
+- lotes: Lotes de productos con fecha vencimiento
+- movimientos_inventario: Entrada/salida de stock
+- alertas_inventario: Alertas de stock bajo
+
+PRESTACIÓN DE SERVICIOS:
+- servicios: Servicios ofrecidos (Consulta, Vacunación, Cirugía)
+- citas: Citas veterinarias
+- servicios_prestados: Servicios realizados en citas
+- facturas: Facturas de cobro a clientes
+
+NOTIFICACIONES:
+- canales_envio: Canales de notificación (EMAIL, APP)
+- plantillas_mensajes: Plantillas para envío de notificaciones
+- notificaciones: Notificaciones enviadas/pendientes
+- destinatarios: Destinatarios de notificaciones
+- notificacion_destinatarios: Relación M:M entre notificaciones y destinatarios
+- canales_email: Configuración específica para canal EMAIL
+- canales_app: Configuración específica para canal APP
+
+CONFIGURACIÓN DEL SISTEMA - NÚCLEO (V1-V9):
+- parametros_sistema: Parámetros de configuración
+- logs_sistema: Logs del sistema
+
+CONFIGURACIÓN DEL SISTEMA - MÓDULO COMPLETO (V10):
+- informacion_clinica: Información general y datos de la clínica
+- permisos_rol: Permisos granulares por rol (implementa RBAC)
+- servicios_configuracion: Catálogo de servicios veterinarios ofrecidos
+- horarios_atencion: Horarios de operación diaria de la clínica
+- auditoria_detallada: Auditoría detallada de todas las operaciones críticas
+- respaldos_sistema: Registros de respaldos con verificación de integridad
+- configuracion_avanzada: Parámetros avanzados del sistema (JSON, Booleano, etc)
+
+REPORTES Y ESTADÍSTICAS:
+- reportes: Reportes generados
+- estadisticas: Estadísticas del sistema
+- indicadores: Indicadores principales
+- fuentes_datos: Fuentes de datos para reportes
+
+================================================================================
+2. CAMPOS DE CADA TABLA
+================================================================================
+
+TABLA: personas
+Propósito: Base abstracta con datos personales de todos los usuarios
+Campos:
+  id_persona (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(100) NOT NULL)
+  apellido (VARCHAR(100) NOT NULL)
+  correo (VARCHAR(150) NOT NULL UNIQUE)
+  telefono (VARCHAR(30))
+  direccion (VARCHAR(255))
+
+TABLA: roles
+Propósito: Define roles del sistema
+Campos:
+  id_rol (BIGSERIAL PRIMARY KEY)
+  nombre_rol (VARCHAR(50) NOT NULL UNIQUE)
+  descripcion (VARCHAR(255))
+
+TABLA: permisos
+Propósito: Define permisos granulares
+Campos:
+  id_permiso (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(100) NOT NULL UNIQUE)
+  descripcion (VARCHAR(255))
+
+TABLA: rol_permisos
+Propósito: Relación M:M entre roles y permisos
+Campos:
+  rol_id (BIGINT NOT NULL FOREIGN KEY → roles(id_rol) ON DELETE CASCADE)
+  permiso_id (BIGINT NOT NULL FOREIGN KEY → permisos(id_permiso) ON DELETE CASCADE)
+  PRIMARY KEY: (rol_id, permiso_id)
+
+TABLA: usuarios
+Propósito: Hereda de personas, contiene credenciales y login
+Campos:
+  id_usuario (BIGINT PRIMARY KEY FOREIGN KEY → personas(id_persona) ON DELETE CASCADE)
+  username (VARCHAR(60) NOT NULL UNIQUE)
+  password_hash (VARCHAR(255) NOT NULL)
+  activo (BOOLEAN NOT NULL DEFAULT TRUE)
+  ultimo_acceso (TIMESTAMP WITH TIME ZONE)
+  rol_id (BIGINT NOT NULL FOREIGN KEY → roles(id_rol))
+
+TABLA: clientes
+Propósito: Hereda de usuarios, propietarios de mascotas
+Campos:
+  id_usuario (BIGINT PRIMARY KEY FOREIGN KEY → usuarios(id_usuario) ON DELETE CASCADE)
+  fecha_registro (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  documento_identidad (VARCHAR(50))
+
+TABLA: usuarios_veterinarios
+Propósito: Hereda de usuarios, veterinarios profesionales
+Campos:
+  id_usuario (BIGINT PRIMARY KEY FOREIGN KEY → usuarios(id_usuario) ON DELETE CASCADE)
+  licencia_profesional (VARCHAR(100))
+  especialidad (VARCHAR(100))
+  disponibilidad (JSONB - contiene horarios de atención)
+
+TABLA: secretarios
+Propósito: Hereda de usuarios, secretarios administrativos
+Campos:
+  id_usuario (BIGINT PRIMARY KEY FOREIGN KEY → usuarios(id_usuario) ON DELETE CASCADE)
+  extension (VARCHAR(20))
+
+TABLA: historial_acciones
+Propósito: Auditoría de acciones por usuario
+Campos:
+  id_accion (BIGSERIAL PRIMARY KEY)
+  usuario_id (BIGINT NOT NULL FOREIGN KEY → usuarios(id_usuario) ON DELETE CASCADE)
+  fecha_hora (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  descripcion (TEXT NOT NULL)
+  metadata (JSONB)
+
+TABLA: pacientes
+Propósito: Mascotas (perros/gatos) de los clientes
+Campos:
+  id_paciente (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(100) NOT NULL)
+  especie (VARCHAR(30) NOT NULL CHECK que sea 'perro' o 'gato')
+  raza (VARCHAR(80))
+  fecha_nacimiento (DATE)
+  sexo (VARCHAR(10))
+  peso_kg (NUMERIC(5,2) CHECK > 0)
+  estado_salud (VARCHAR(100))
+  cliente_id (BIGINT NOT NULL FOREIGN KEY → clientes(id_usuario) ON DELETE CASCADE)
+  identificador_externo (UUID)
+
+TABLA: historias_clinicas
+Propósito: Historia clínica por paciente
+Campos:
+  id_historia (BIGSERIAL PRIMARY KEY)
+  paciente_id (BIGINT NOT NULL FOREIGN KEY → pacientes(id_paciente) ON DELETE CASCADE)
+  fecha_apertura (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  resumen (TEXT)
+  metadatos (JSONB)
+
+TABLA: registros_medicos
+Propósito: Registros médicos por cada consulta/cita
+Campos:
+  id_registro (BIGSERIAL PRIMARY KEY)
+  historia_id (BIGINT NOT NULL FOREIGN KEY → historias_clinicas(id_historia) ON DELETE CASCADE)
+  fecha (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  motivo (TEXT)
+  diagnostico (TEXT)
+  signos_vitales (JSONB - contiene temperatura, FC, FR, etc)
+  tratamiento (TEXT)
+  veterinario_id (BIGINT FOREIGN KEY → usuarios_veterinarios(id_usuario))
+  insumos_usados (JSONB)
+  archivos (JSONB)
+
+TABLA: vacunaciones
+Propósito: Vacunas aplicadas a pacientes
+Campos:
+  id_vacunacion (BIGSERIAL PRIMARY KEY)
+  paciente_id (BIGINT NOT NULL FOREIGN KEY → pacientes(id_paciente) ON DELETE CASCADE)
+  tipo_vacuna (VARCHAR(100) NOT NULL)
+  fecha_aplicacion (DATE NOT NULL)
+  proxima_dosis (DATE)
+  veterinario_id (BIGINT FOREIGN KEY → usuarios_veterinarios(id_usuario))
+
+TABLA: desparasitaciones
+Propósito: Desparasitaciones aplicadas a pacientes
+Campos:
+  id_desparasitacion (BIGSERIAL PRIMARY KEY)
+  paciente_id (BIGINT NOT NULL FOREIGN KEY → pacientes(id_paciente) ON DELETE CASCADE)
+  producto_usado (VARCHAR(150) NOT NULL)
+  fecha_aplicacion (DATE NOT NULL)
+  proxima_aplicacion (DATE)
+
+TABLA: proveedores
+Propósito: Suministradores de productos
+Campos:
+  id_proveedor (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(150) NOT NULL)
+  contacto (VARCHAR(100))
+  telefono (VARCHAR(30))
+  direccion (VARCHAR(255))
+  correo (VARCHAR(150) UNIQUE)
+
+TABLA: productos
+Propósito: Inventario de productos/medicamentos
+Campos:
+  id_producto (BIGSERIAL PRIMARY KEY)
+  sku (VARCHAR(60) NOT NULL UNIQUE)
+  nombre (VARCHAR(150) NOT NULL)
+  descripcion (TEXT)
+  tipo (VARCHAR(50) - puede ser medicamento, biologico o insumo)
+  stock (INTEGER NOT NULL DEFAULT 0 CHECK >= 0)
+  precio_unitario (NUMERIC(12,2) NOT NULL CHECK >= 0)
+  um (VARCHAR(20) - unidad de medida: tableta, frasco, paquete)
+  metadatos (JSONB)
+Índices: idx_productos_nombre, idx_productos_tipo
+
+TABLA: lotes
+Propósito: Lotes de productos con fecha vencimiento
+Campos:
+  id_lote (BIGSERIAL PRIMARY KEY)
+  producto_id (BIGINT NOT NULL FOREIGN KEY → productos(id_producto) ON DELETE CASCADE)
+  fecha_vencimiento (DATE NOT NULL CHECK >= CURRENT_DATE)
+  cantidad (INTEGER NOT NULL CHECK > 0)
+  numero_lote (VARCHAR(100) UNIQUE)
+
+TABLA: movimientos_inventario
+Propósito: Entrada/salida de stock
+Campos:
+  id_movimiento (BIGSERIAL PRIMARY KEY)
+  producto_id (BIGINT NOT NULL FOREIGN KEY → productos(id_producto) ON DELETE CASCADE)
+  tipo_movimiento (VARCHAR(20) NOT NULL CHECK que sea IN, OUT o AJUSTE)
+  cantidad (INTEGER NOT NULL)
+  fecha (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  proveedor_id (BIGINT FOREIGN KEY → proveedores(id_proveedor))
+  referencia (VARCHAR(100))
+  usuario_id (BIGINT FOREIGN KEY → usuarios(id_usuario))
+
+TABLA: alertas_inventario
+Propósito: Alertas de stock bajo
+Campos:
+  id_alerta (BIGSERIAL PRIMARY KEY)
+  producto_id (BIGINT NOT NULL FOREIGN KEY → productos(id_producto) ON DELETE CASCADE)
+  nivel_stock (INTEGER NOT NULL)
+  fecha_generada (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  mensaje (TEXT)
+
+TABLA: servicios
+Propósito: Servicios ofrecidos
+Campos:
+  id_servicio (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(120) NOT NULL UNIQUE)
+  descripcion (TEXT)
+  tipo (VARCHAR(50) - puede ser CONSULTA, VACUNACIÓN o CIRUGÍA)
+  precio_base (NUMERIC(12,2) NOT NULL CHECK >= 0)
+  duracion_min (INTEGER - duración en minutos)
+
+TABLA: citas
+Propósito: Citas veterinarias
+Campos:
+  id_cita (BIGSERIAL PRIMARY KEY)
+  paciente_id (BIGINT NOT NULL FOREIGN KEY → pacientes(id_paciente) ON DELETE CASCADE)
+  veterinario_id (BIGINT NOT NULL FOREIGN KEY → usuarios_veterinarios(id_usuario))
+  fecha_hora (TIMESTAMP WITH TIME ZONE NOT NULL)
+  tipo_servicio (VARCHAR(50))
+  estado (VARCHAR(30) NOT NULL DEFAULT PROGRAMADA CHECK que sea PROGRAMADA, REALIZADA o CANCELADA)
+  motivo (TEXT)
+  triage_nivel (VARCHAR(30))
+UNIQUE INDEX: (veterinario_id, fecha_hora) donde estado = PROGRAMADA
+
+TABLA: servicios_prestados
+Propósito: Servicios realizados en citas
+Campos:
+  id_prestado (BIGSERIAL PRIMARY KEY)
+  cita_id (BIGINT NOT NULL FOREIGN KEY → citas(id_cita) ON DELETE CASCADE)
+  servicio_id (BIGINT NOT NULL FOREIGN KEY → servicios(id_servicio))
+  fecha_ejecucion (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  observaciones (TEXT)
+  costo_total (NUMERIC(12,2) NOT NULL CHECK >= 0)
+  insumos_consumidos (JSONB - formato: {SKU: cantidad, ...})
+
+TABLA: facturas
+Propósito: Facturas de cobro a clientes
+Campos:
+  id_factura (BIGSERIAL PRIMARY KEY)
+  numero (VARCHAR(50) NOT NULL UNIQUE)
+  fecha_emision (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  total (NUMERIC(14,2) NOT NULL CHECK >= 0)
+  forma_pago (VARCHAR(50) - puede ser EFECTIVO, TRANSFERENCIA o TARJETA)
+  estado (VARCHAR(20) NOT NULL DEFAULT PENDIENTE CHECK que sea PENDIENTE, PAGADA o ANULADA)
+  cliente_id (BIGINT NOT NULL FOREIGN KEY → clientes(id_usuario))
+  contenido (JSONB - detalle de servicios y productos)
+
+TABLA: canales_envio
+Propósito: Canales de notificación
+Campos:
+  id_canal (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(50) NOT NULL UNIQUE - valores: EMAIL o APP)
+  configuracion (JSONB)
+
+TABLA: plantillas_mensajes
+Propósito: Plantillas para envío de notificaciones
+Campos:
+  id_plantilla (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(100) NOT NULL UNIQUE)
+  asunto (VARCHAR(150))
+  cuerpo (TEXT NOT NULL)
+  variables (JSONB - lista de variables disponibles)
+
+TABLA: notificaciones
+Propósito: Notificaciones enviadas/pendientes
+Campos:
+  id_notificacion (BIGSERIAL PRIMARY KEY)
+  tipo (VARCHAR(50))
+  mensaje (TEXT NOT NULL)
+  fecha_envio_programada (TIMESTAMP WITH TIME ZONE)
+  fecha_envio_real (TIMESTAMP WITH TIME ZONE)
+  estado (VARCHAR(30) NOT NULL DEFAULT PENDIENTE CHECK que sea PENDIENTE, ENVIADA o FALLIDA)
+  plantilla_id (BIGINT FOREIGN KEY → plantillas_mensajes(id_plantilla))
+  datos (JSONB - variables resueltas)
+
+TABLA: destinatarios
+Propósito: Destinatarios de notificaciones
+Campos:
+  id_destinatario (BIGSERIAL PRIMARY KEY)
+  tipo_destinatario (VARCHAR(30))
+  referencia_id (BIGINT - referencias a usuarios u otros IDs)
+
+TABLA: notificacion_destinatarios
+Propósito: Relación M:M entre notificaciones y destinatarios
+Campos:
+  notificacion_id (BIGINT NOT NULL FOREIGN KEY → notificaciones(id_notificacion) ON DELETE CASCADE)
+  destinatario_id (BIGINT NOT NULL FOREIGN KEY → destinatarios(id_destinatario) ON DELETE CASCADE)
+  PRIMARY KEY: (notificacion_id, destinatario_id)
+
+TABLA: canales_email
+Propósito: Configuración específica para canal EMAIL
+Campos:
+  id_canal (BIGINT PRIMARY KEY FOREIGN KEY → canales_envio(id_canal) ON DELETE CASCADE)
+  smtp_server (VARCHAR(150))
+  from_address (VARCHAR(150))
+
+TABLA: canales_app
+Propósito: Configuración específica para canal APP
+Campos:
+  id_canal (BIGINT PRIMARY KEY FOREIGN KEY → canales_envio(id_canal) ON DELETE CASCADE)
+  app_topic (VARCHAR(150))
+
+TABLA: parametros_sistema
+Propósito: Parámetros de configuración (Singleton)
+Campos:
+  id_parametro (BIGSERIAL PRIMARY KEY)
+  clave (VARCHAR(150) NOT NULL UNIQUE)
+  valor (VARCHAR(500) NOT NULL)
+  descripcion (TEXT)
+  aplicacion (VARCHAR(50))
+
+TABLA: backups_sistema
+Propósito: Registros de backups realizados
+Campos:
+  id_backup (BIGSERIAL PRIMARY KEY)
+  fecha_creacion (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  ruta_archivo (VARCHAR(500) NOT NULL)
+  metadata (JSONB)
+
+TABLA: logs_sistema
+Propósito: Logs del sistema
+Campos:
+  id_log (BIGSERIAL PRIMARY KEY)
+  fecha_hora (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  nivel (VARCHAR(20) NOT NULL - puede ser INFO, WARN, ERROR o DEBUG)
+  componente (VARCHAR(100))
+  mensaje (TEXT NOT NULL)
+  metadata (JSONB)
+Índices: idx_logs_nivel, idx_logs_componente, idx_logs_fecha
+
+================================================================================
+TABLAS DEL MÓDULO DE CONFIGURACIÓN (V10 - Proyecto Reescrito)
+================================================================================
+
+TABLA: informacion_clinica
+Propósito: Información general de la clínica veterinaria (tipo Singleton)
+Campos:
+  id_clinica (BIGSERIAL PRIMARY KEY)
+  nombre_clinica (VARCHAR(200) NOT NULL)
+  telefono (VARCHAR(20))
+  email (VARCHAR(100))
+  direccion (TEXT)
+  sitio_web (VARCHAR(200))
+  logo_url (VARCHAR(500))
+  mision (TEXT)
+  vision (TEXT)
+  created_by (VARCHAR(100))
+  created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+  updated_by (VARCHAR(100))
+  updated_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+Inherits from: Auditable (via Flyway V3)
+Índices: idx_informacion_clinica_created_at
+
+TABLA: permisos_rol
+Propósito: Permisos granulares asignados a cada rol (implementa RBAC)
+Campos:
+  id_permiso (BIGSERIAL PRIMARY KEY)
+  rol_id (BIGINT NOT NULL FOREIGN KEY → roles(id_rol) ON DELETE CASCADE)
+  modulo (VARCHAR(50) NOT NULL - ej: usuarios, pacientes, citas, historias, reportes, configuracion)
+  accion (VARCHAR(50) NOT NULL - ej: leer, crear, editar, eliminar, exportar)
+  descripcion (VARCHAR(200))
+  activo (BOOLEAN NOT NULL DEFAULT TRUE)
+  created_by (VARCHAR(100))
+  created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+  updated_by (VARCHAR(100))
+  updated_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+Inherits from: Auditable
+Unique Constraint: (rol_id, modulo, accion)
+Indices: idx_permisos_rol_rol_id, idx_permisos_rol_modulo, idx_permisos_rol_activo
+
+TABLA: servicios_configuracion
+Propósito: Catálogo de servicios veterinarios ofrecidos por la clínica
+Campos:
+  id_servicio_config (BIGSERIAL PRIMARY KEY)
+  servicio_id (BIGINT - referencia opcional a servicios del módulo)
+  nombre_servicio (VARCHAR(100) NOT NULL - ej: Consulta General, Vacunación, Cirugía)
+  descripcion (TEXT)
+  precio (DECIMAL(10,2) - precio estándar en moneda local)
+  duracion_minutos (INTEGER - duración aproximada)
+  categoria (VARCHAR(50) - ej: Consulta, Cirugía, Diagnóstico, Estética, Prevención)
+  activo (BOOLEAN NOT NULL DEFAULT TRUE)
+  created_by (VARCHAR(100))
+  created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+  updated_by (VARCHAR(100))
+  updated_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+Inherits from: Auditable
+Indices: idx_servicios_config_activo, idx_servicios_config_categoria
+
+TABLA: horarios_atencion
+Propósito: Horarios de operación diaria de la clínica
+Campos:
+  id_horario (BIGSERIAL PRIMARY KEY)
+  dia_semana (VARCHAR(20) NOT NULL - valores: LUNES, MARTES, MIERCOLES, JUEVES, VIERNES, SABADO, DOMINGO)
+  hora_apertura (TIME)
+  hora_cierre (TIME)
+  cerrado (BOOLEAN NOT NULL DEFAULT FALSE - indica si la clínica está cerrada ese día)
+  notas (VARCHAR(200) - ej: Horario normal, Horario reducido por festivo)
+  created_by (VARCHAR(100))
+  created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+  updated_by (VARCHAR(100))
+  updated_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+Inherits from: Auditable
+Unique Constraint: (dia_semana)
+Check Constraint: dia_semana IN válidos
+Índices: idx_horarios_atencion_dia
+
+TABLA: auditoria_detallada
+Propósito: Auditoría detallada de todas las operaciones críticas (patrón Memento)
+Campos:
+  id_auditoria (BIGSERIAL PRIMARY KEY)
+  usuario_id (BIGINT NOT NULL FOREIGN KEY → usuarios(id_usuario) ON DELETE CASCADE)
+  tipo_accion (VARCHAR(50) NOT NULL - ej: CREAR, EDITAR, ELIMINAR, EXPORTAR, LOGIN)
+  entidad (VARCHAR(100) NOT NULL - ej: Usuario, Paciente, Cita, HistoriaClinica)
+  entidad_id (BIGINT - ID del registro afectado)
+  datos_antes (JSONB - estado anterior del registro)
+  datos_despues (JSONB - estado posterior del registro)
+  ip_origen (VARCHAR(45) - dirección IP de origen)
+  user_agent (VARCHAR(500) - información del navegador)
+  descripcion (TEXT)
+  created_by (VARCHAR(100))
+  created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+  updated_by (VARCHAR(100))
+  updated_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+Inherits from: Auditable
+Índices: idx_auditoria_usuario, idx_auditoria_tipo_accion, idx_auditoria_entidad, idx_auditoria_created_at DESC
+
+TABLA: respaldos_sistema
+Propósito: Registros de respaldos (backups) con verificación de integridad
+Campos:
+  id_respaldo (BIGSERIAL PRIMARY KEY)
+  usuario_id (BIGINT NOT NULL FOREIGN KEY → usuarios(id_usuario) ON DELETE SET NULL)
+  fecha_respaldo (TIMESTAMP NOT NULL)
+  tipo_respaldo (VARCHAR(20) NOT NULL - valores: COMPLETO, INCREMENTAL, DIFERENCIAL, CONFIGURACION)
+  ruta_archivo (VARCHAR(500) NOT NULL)
+  tamano_bytes (BIGINT - tamaño del archivo)
+  hash_verificacion (VARCHAR(64) - SHA-256 para verificar integridad)
+  estado (VARCHAR(20) NOT NULL - valores: COMPLETADO, EN_PROCESO, FALLIDO, CORRUPTO, RESTAURADO)
+  descripcion (TEXT)
+  error_mensaje (TEXT - información de error si falló)
+  created_by (VARCHAR(100))
+  created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+  updated_by (VARCHAR(100))
+  updated_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+Inherits from: Auditable
+Check Constraints: tipo_respaldo y estado en valores válidos
+Índices: idx_respaldos_usuario, idx_respaldos_tipo, idx_respaldos_fecha DESC, idx_respaldos_estado
+
+TABLA: configuracion_avanzada
+Propósito: Parámetros avanzados del sistema (valores dinámicos y configurables)
+Campos:
+  id_configuracion (BIGSERIAL PRIMARY KEY)
+  clave (VARCHAR(100) NOT NULL UNIQUE - ej: respaldos.automaticos.habilitado)
+  valor (TEXT NOT NULL - valor del parámetro)
+  categoria (VARCHAR(50) - ej: RESPALDOS, AUDITORIA, CITAS)
+  tipo_dato (VARCHAR(20) NOT NULL - valores: STRING, INTEGER, BOOLEAN, JSON, DECIMAL, DATE, TIME)
+  descripcion (VARCHAR(500))
+  editable (BOOLEAN NOT NULL DEFAULT TRUE - indica si se puede editar desde UI)
+  activo (BOOLEAN NOT NULL DEFAULT TRUE - indica si el parámetro está activo)
+  created_by (VARCHAR(100))
+  created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+  updated_by (VARCHAR(100))
+  updated_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+Inherits from: Auditable
+Unique Constraint: (clave)
+Check Constraint: tipo_dato IN (STRING, INTEGER, BOOLEAN, JSON, DECIMAL, DATE, TIME)
+Índices: idx_config_categoria, idx_config_editable, idx_config_activo
+
+EJEMPLOS DE CONFIG_AVANZADA:
+- respaldos.automaticos.habilitado = true (BOOLEAN)
+- respaldos.automaticos.hora = 02:00 (STRING)
+- respaldos.retencion.dias = 30 (INTEGER)
+- auditoria.retener.dias = 90 (INTEGER)
+- citas.duracion.estandar = 30 (INTEGER)
+- citas.maximo.dia = 12 (INTEGER)
+- citas.anticipacion.horas = 24 (INTEGER)
+
+================================================================================
+TABLA: reportes
+Propósito: Reportes generados
+Campos:
+  id_reporte (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(120) NOT NULL UNIQUE)
+  tipo (VARCHAR(50))
+  fecha_generacion (TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)
+  generado_por (BIGINT FOREIGN KEY → usuarios(id_usuario))
+  parametros (JSONB)
+
+TABLA: estadisticas
+Propósito: Estadísticas del sistema
+Campos:
+  id_estadistica (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(120) NOT NULL)
+  valor (NUMERIC(18,4))
+  periodo_inicio (DATE)
+  periodo_fin (DATE)
+  UNIQUE: (nombre, periodo_inicio, periodo_fin)
+
+TABLA: indicadores
+Propósito: Indicadores principales (KPIs)
+Campos:
+  id_indicador (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(120) NOT NULL UNIQUE)
+  descripcion (TEXT)
+  valor_actual (NUMERIC(18,4))
+
+TABLA: fuentes_datos
+Propósito: Fuentes de datos para reportes
+Campos:
+  id_fuente (BIGSERIAL PRIMARY KEY)
+  nombre (VARCHAR(120) NOT NULL UNIQUE)
+  tipo (VARCHAR(50))
+  configuracion (JSONB)
+
+================================================================================
+3. RELACIONES ENTRE TABLAS
+================================================================================
+
+RELACIONES DEL MÓDULO DE CONFIGURACIÓN (V10):
+
+informacion_clinica → permisos_rol
+No hay FK directa (relación implícita por rol)
+
+roles → permisos_rol
+Un rol puede tener múltiples permisos granulares (RBAC)
+
+usuarios → auditoria_detallada
+Un usuario puede tener múltiples registros de auditoría
+
+usuarios → respaldos_sistema
+Un usuario puede generar múltiples respaldos
+
+servicios_configuracion (tabla independiente)
+Catálogo de servicios sin FK a otras tablas
+
+horarios_atencion (tabla independiente)
+Horarios independientes por día de la semana
+
+configuracion_avanzada (tabla independiente)
+Parámetros de configuración sin FK a otras tablas
+
+RELACIONES GENERALES (V1-V9):
+personas (tabla base)
+  ├── usuarios (hereda de personas)
+  │   ├── clientes (hereda de usuarios)
+  │   ├── usuarios_veterinarios (hereda de usuarios)
+  │   └── secretarios (hereda de usuarios)
+
+RELACIONES UNO A MUCHOS (1:N):
+
+personas → historial_acciones
+Un usuario puede registrar múltiples acciones en el historial
+
+clientes → pacientes
+Un cliente puede tener una o más mascotas
+
+pacientes → historias_clinicas
+Un paciente puede tener una o más historias clínicas
+
+historias_clinicas → registros_medicos
+Una historia clínica contiene múltiples registros médicos
+
+pacientes → vacunaciones
+Un paciente puede recibir múltiples vacunas
+
+pacientes → desparasitaciones
+Un paciente puede recibir múltiples desparasitaciones
+
+pacientes → citas
+Un paciente puede tener múltiples citas
+
+usuarios_veterinarios → citas
+Un veterinario puede atender múltiples citas
+
+usuarios_veterinarios → registros_medicos
+Un veterinario puede realizar múltiples registros médicos
+
+usuarios_veterinarios → vacunaciones
+Un veterinario puede aplicar múltiples vacunas
+
+proveedores → movimientos_inventario
+Un proveedor puede estar asociado a múltiples movimientos
+
+productos → lotes
+Un producto puede tener múltiples lotes
+
+productos → movimientos_inventario
+Un producto puede tener múltiples movimientos de entrada/salida
+
+productos → alertas_inventario
+Un producto puede generar múltiples alertas
+
+citas → servicios_prestados
+Una cita puede incluir múltiples servicios
+
+servicios → servicios_prestados
+Un servicio puede prestarse en múltiples citas
+
+clientes → facturas
+Un cliente puede tener múltiples facturas
+
+usuarios → reportes
+Un usuario puede generar múltiples reportes
+
+plantillas_mensajes → notificaciones
+Una plantilla puede usarse en múltiples notificaciones
+
+notificaciones → notificacion_destinatarios
+Una notificación puede tener múltiples destinatarios
+
+destinatarios → notificacion_destinatarios
+Un destinatario puede recibir múltiples notificaciones
+
+RELACIONES MUCHOS A MUCHOS (M:N):
+
+roles ↔ permisos (a través de rol_permisos)
+Múltiples permisos pueden estar asignados a un rol
+Un permiso puede estar en múltiples roles
+
+notificaciones ↔ destinatarios (a través de notificacion_destinatarios)
+Una notificación puede ir a múltiples destinatarios
+Un destinatario puede recibir múltiples notificaciones
+
+RELACIONES ESPECIALIZACIÓN (Herencia):
+
+usuarios → clientes
+Un usuario en el rol CLIENTE es un cliente
+
+usuarios → usuarios_veterinarios
+Un usuario en el rol VETERINARIO es un veterinario
+
+usuarios → secretarios
+Un usuario en el rol SECRETARIO es un secretario
+
+RELACIONES INDIRECTAS:
+
+citas → facturas (a través de servicios_prestados)
+Las facturas se generan a partir de los servicios prestados en las citas
+
+productos → servicios_prestados (indirecta a través de insumos_consumidos)
+Los productos se consumen durante la prestación de servicios
+
+CARACTERÍSTICAS ESPECIALES DE LAS RELACIONES:
+
+Exclusividad de citas:
+UNIQUE INDEX en (veterinario_id, fecha_hora) donde estado = PROGRAMADA
+Esto previene que un veterinario tenga dos citas programadas a la misma hora
+
+Cascada en eliminación:
+Cuando se elimina un cliente, se eliminan también sus pacientes
+Cuando se elimina un paciente, se eliminan sus historias clínicas y citas
+Cuando se elimina una cita, se eliminan los servicios prestados
+
+Validaciones de negocio:
+Los pacientes solo pueden ser perro o gato
+El peso debe ser positivo
+El stock de productos no puede ser negativo
+Los precios no pueden ser negativos
+Las facturas tienen estados controlados (PENDIENTE, PAGADA, ANULADA)
+Las citas tienen estados controlados (PROGRAMADA, REALIZADA, CANCELADA)
+
+================================================================================
+EJEMPLOS DE RELACIONES CLAVE
+================================================================================
+
+CASO: Un cliente y sus mascotas
+
+1. Diego es un cliente registrado en el sistema
+   - Registro: usuarios (id_usuario=4, username=cliente_diego, rol_id=4)
+   - Registro: clientes (id_usuario=4, documento_identidad=CC-100200300)
+
+2. Diego es propietario de Firulais (un perro)
+   - Registro: pacientes (id_paciente=1, nombre=Firulais, especie=perro, cliente_id=4)
+   - Relación: pacientes.cliente_id → clientes.id_usuario
+
+3. Firulais tiene una historia clínica
+   - Registro: historias_clinicas (id_historia=1, paciente_id=1)
+   - Relación: historias_clinicas.paciente_id → pacientes.id_paciente
+
+4. En la historia clínica hay múltiples registros médicos
+   - Registro: registros_medicos (id_registro=1, historia_id=1, veterinario_id=2)
+   - Relación: registros_medicos.historia_id → historias_clinicas.id_historia
+
+5. Firulais tiene una cita con el veterinario Carlos
+   - Registro: citas (id_cita=1, paciente_id=1, veterinario_id=2, estado=PROGRAMADA)
+   - Relación: citas.paciente_id → pacientes.id_paciente
+   - Relación: citas.veterinario_id → usuarios_veterinarios.id_usuario
+
+6. En la cita se prestó el servicio de Consulta general
+   - Registro: servicios_prestados (id_prestado=1, cita_id=1, servicio_id=1)
+   - Relación: servicios_prestados.cita_id → citas.id_cita
+
+7. Se generó una factura al cliente Diego
+   - Registro: facturas (id_factura=1, cliente_id=4, numero=FAC-2025-0001, estado=PAGADA)
+   - Relación: facturas.cliente_id → clientes.id_usuario
+
+CASO: Flujo de notificaciones
+
+1. Sistema crea una notificación de recordatorio
+   - Registro: notificaciones (id_notificacion=1, tipo=RECORDATORIO_CITA, estado=PENDIENTE)
+
+2. Se selecciona una plantilla de mensaje
+   - Registro: notificaciones.plantilla_id → plantillas_mensajes.id_plantilla
+   - Plantilla contiene: Recordatorio Cita con variables: nombreCliente, nombreMascota, fecha, hora
+
+3. Se especifican los destinatarios
+   - Registro: destinatarios (id_destinatario=1, tipo_destinatario=CLIENTE, referencia_id=4)
+   - Relación: destinatarios.referencia_id apunta al cliente Diego
+
+4. Se vinculan notificación y destinatarios
+   - Registro: notificacion_destinatarios (notificacion_id=1, destinatario_id=1)
+   - Relación M:M
+
+5. Scheduler procesa notificaciones pendientes
+   - Se buscan: notificaciones donde estado=PENDIENTE y fecha_envio_programada <= NOW
+
+6. Se elige el canal de envío (EMAIL o APP)
+   - Registro: canales_email (id_canal=1, smtp_server=smtp.gmail.com, from_address=notificaciones@veterinaria.com)
+   - Relación: canales_email.id_canal → canales_envio.id_canal
+
+7. Se envía la notificación
+   - Actualización: notificaciones.estado = ENVIADA
+   - Actualización: notificaciones.fecha_envio_real = NOW
+
+CASO: Movimientos de inventario
+
+1. Un producto ingresa al inventario desde proveedor
+   - Registro: movimientos_inventario (id_movimiento=1, producto_id=1, tipo_movimiento=IN, cantidad=50)
+   - Relación: movimientos_inventario.producto_id → productos.id_producto
+   - Relación: movimientos_inventario.proveedor_id → proveedores.id_proveedor
+
+2. Se consume un producto durante un servicio
+   - Registro: servicios_prestados (insumos_consumidos={'SKU-GASA': 1})
+   - Se registra salida: movimientos_inventario (tipo_movimiento=OUT, cantidad=1)
+
+3. Stock bajo genera alerta
+   - Registro: alertas_inventario (producto_id=3, nivel_stock=15)
+   - Relación: alertas_inventario.producto_id → productos.id_producto
+
+================================================================================
+NOTAS SOBRE MIGRACIONES (Flyway)
+================================================================================
+
+V1: Tablas base (personas, usuarios, clientes, pacientes, servicios, citas, facturas, notificaciones)
+V2: Campos de recuperación de contraseña (password_reset_token, password_reset_token_expiry)
+V3: Columnas de auditoría (created_by, created_at, updated_by, updated_at) a todas las tablas
+V4: Tabla solicitudes_citas para solicitudes de cita del portal
+V5: Índices de concurrencia en citas para prevenir race conditions
+V6: Campos de audit trail en solicitudes_citas (aprobado_por, rechazado_por, cancelado_por)
+V7: (No existe en este proyecto)
+V8: Columnas tipo_accion (length 100) e ip_address en historial_acciones
+V9: Campo fecha_pago en facturas
+V10: Módulo completo de Configuración (7 nuevas tablas):
+     - informacion_clinica
+     - permisos_rol (implementa RBAC dinámico)
+     - servicios_configuracion
+     - horarios_atencion
+     - auditoria_detallada (auditoría detallada con patrón Memento)
+     - respaldos_sistema
+     - configuracion_avanzada
+
+NOTA IMPORTANTE: La mayoría de tablas en V10 extienden la clase Auditable via V3,
+por lo que heredan automáticamente: created_by, created_at, updated_by, updated_at
+
+================================================================================
+FIN DEL ESQUEMA DE BASE DE DATOS
+================================================================================

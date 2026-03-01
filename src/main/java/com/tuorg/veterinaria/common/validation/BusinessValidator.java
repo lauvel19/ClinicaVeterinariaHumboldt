@@ -1,6 +1,8 @@
 package com.tuorg.veterinaria.common.validation;
 
 import com.tuorg.veterinaria.common.exception.BusinessException;
+import com.tuorg.veterinaria.gestionfacturacion.model.Factura;
+import com.tuorg.veterinaria.gestionfacturacion.repository.FacturaRepository;
 import com.tuorg.veterinaria.gestioninventario.model.Producto;
 import com.tuorg.veterinaria.gestioninventario.repository.ProductoRepository;
 import com.tuorg.veterinaria.gestionpacientes.model.Paciente;
@@ -10,6 +12,7 @@ import com.tuorg.veterinaria.prestacioneservicios.repository.CitaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -28,14 +31,17 @@ public class BusinessValidator {
     private final ProductoRepository productoRepository;
     private final PacienteRepository pacienteRepository;
     private final CitaRepository citaRepository;
+    private final FacturaRepository facturaRepository;
 
     @Autowired
     public BusinessValidator(ProductoRepository productoRepository,
                             PacienteRepository pacienteRepository,
-                            CitaRepository citaRepository) {
+                            CitaRepository citaRepository,
+                            FacturaRepository facturaRepository) {
         this.productoRepository = productoRepository;
         this.pacienteRepository = pacienteRepository;
         this.citaRepository = citaRepository;
+        this.facturaRepository = facturaRepository;
     }
 
     /**
@@ -119,8 +125,24 @@ public class BusinessValidator {
      * @throws BusinessException Si el cliente tiene deuda excesiva
      */
     public void validarDeudaCliente(Long clienteId, double montoMaximoPermitido) {
-        // TODO: Implementar cuando se agregue tracking de pagos pendientes
-        // Por ahora solo es un placeholder para futuras implementaciones
+        if (montoMaximoPermitido < 0) {
+            throw new BusinessException("El monto máximo permitido no puede ser negativo");
+        }
+
+        BigDecimal deudaPendiente = facturaRepository.findByClienteId(clienteId)
+                .stream()
+                .filter(factura -> "PENDIENTE".equalsIgnoreCase(factura.getEstado()))
+                .map(Factura::getTotal)
+                .filter(total -> total != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal limite = BigDecimal.valueOf(montoMaximoPermitido);
+        if (deudaPendiente.compareTo(limite) > 0) {
+            throw new BusinessException(
+                    String.format("El cliente supera la deuda permitida. Deuda actual: %.2f, límite: %.2f",
+                            deudaPendiente.doubleValue(), montoMaximoPermitido)
+            );
+        }
     }
 
     /**

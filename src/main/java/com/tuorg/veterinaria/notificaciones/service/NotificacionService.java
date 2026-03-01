@@ -1,6 +1,7 @@
 package com.tuorg.veterinaria.notificaciones.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tuorg.veterinaria.common.constants.AppConstants;
 import com.tuorg.veterinaria.common.exception.BusinessException;
@@ -330,7 +331,7 @@ public class NotificacionService {
             return Collections.emptyMap();
         }
         try {
-            return objectMapper.readValue(datosJson, Map.class);
+            return objectMapper.readValue(datosJson, new TypeReference<Map<String, Object>>() {});
         } catch (JsonProcessingException e) {
             return Collections.emptyMap();
         }

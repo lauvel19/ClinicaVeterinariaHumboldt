@@ -2,7 +2,6 @@ package com.tuorg.veterinaria.common.ratelimit;
 
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
-import io.github.bucket4j.Refill;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;

@@ -1,386 +1,266 @@
 -- =====================================================
 -- V10: Crear tablas para el módulo de Configuración del Sistema
--- Descripción: Este módulo implementa una gestión centralizada de la configuración
--- con soporte para información de la clínica, permisos dinámicos por rol,
--- servicios veterinarios, horarios de atención, auditoría contextual y respaldos.
--- 
--- Patrones implementados:
--- - Singleton: ConfigService gestiona configuración centralizada
--- - Command: Operaciones auditables con historial
--- - Memento: Respaldos con posibilidad de restauración
+-- =====================================================
+-- Este script procesa 7 tablas que extienden Auditable:
+-- - informacion_clinica
+-- - permisos_rol
+-- - servicios_configuracion
+-- - horarios_atencion
+-- - auditoria_detallada
+-- - respaldos_sistema
+-- - configuracion_avanzada
 -- =====================================================
 
 -- =====================================================
 -- 1. INFORMACIÓN GENERAL DE LA CLÍNICA
--- Tabla para almacenar datos básicos de la clínica (nombre, NIT, contacto, etc.)
--- Sigue el patrón Singleton ya que solo debe haber UN registro activo
 -- =====================================================
 CREATE TABLE IF NOT EXISTS informacion_clinica (
-    id BIGSERIAL PRIMARY KEY,
-    nombre_clinica VARCHAR(255) NOT NULL,
-    nit VARCHAR(50) NOT NULL,
+    id_clinica BIGSERIAL PRIMARY KEY,
+    nombre_clinica VARCHAR(200) NOT NULL,
     telefono VARCHAR(20),
-    email VARCHAR(255),
-    direccion VARCHAR(500),
-    idioma VARCHAR(10) DEFAULT 'es',
-    moneda VARCHAR(10) DEFAULT 'COP',
-    zona_horaria VARCHAR(50) DEFAULT 'America/Bogota',
-    formato_fecha VARCHAR(20) DEFAULT 'DD/MM/YYYY',
+    email VARCHAR(100),
+    direccion TEXT,
+    sitio_web VARCHAR(200),
     logo_url VARCHAR(500),
+    mision TEXT,
+    vision TEXT,
+    horario_atencion TEXT,
+    redes_sociales JSONB,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
     
-    -- Auditoría
-    creado_por VARCHAR(255),
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    modificado_por VARCHAR(255),
-    fecha_modificacion TIMESTAMP,
-    activo BOOLEAN DEFAULT TRUE,
-    
-    -- Constraint para asegurar solo UN registro activo (Singleton)
-    CONSTRAINT uq_informacion_clinica_activo UNIQUE (activo)
+    -- Heredadas de Auditable
+    created_by VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índices para optimizar consultas
-CREATE INDEX idx_informacion_clinica_activo ON informacion_clinica(activo);
+CREATE INDEX idx_informacion_clinica_created_at ON informacion_clinica(created_at);
 
--- Insertar registro inicial con datos de ejemplo
 INSERT INTO informacion_clinica (
-    nombre_clinica, 
-    nit, 
-    telefono, 
-    email, 
-    direccion,
-    idioma,
-    moneda,
-    zona_horaria,
-    formato_fecha,
-    creado_por,
-    activo
+    nombre_clinica, telefono, email, direccion, sitio_web,
+    created_by, created_at
 ) VALUES (
     'Clínica Veterinaria Universitaria Humboldt',
-    '900.123.456-7',
-    '+57 312 456 7890',
+    '+57 312 456 7890', 
     'contacto@vetclinic.com',
     'Calle 123 #45-67, Armenia, Quindío',
-    'es',
-    'COP',
-    'America/Bogota',
-    'DD/MM/YYYY',
+    'https://vetclinic.com',
     'SYSTEM',
-    TRUE
+    CURRENT_TIMESTAMP
 );
 
 -- =====================================================
--- 2. PERMISOS POR ROL (Gestión Dinámica)
--- Tabla para gestionar qué rutas/permisos tiene cada rol del sistema
--- Esto permite configurar dinámicamente el acceso sin modificar código
+-- 2. PERMISOS POR ROL
 -- =====================================================
+-- Campos: idPermiso, rolId, modulo, accion, descripcion, activo
+-- Extends: Auditable
 CREATE TABLE IF NOT EXISTS permisos_rol (
-    id BIGSERIAL PRIMARY KEY,
+    id_permiso BIGSERIAL PRIMARY KEY,
     rol_id BIGINT NOT NULL REFERENCES roles(id_rol) ON DELETE CASCADE,
+    modulo VARCHAR(50) NOT NULL,
+    accion VARCHAR(50) NOT NULL,
+    descripcion VARCHAR(200),
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
     
-    -- Información del permiso
-    modulo VARCHAR(100) NOT NULL, -- Ej: 'usuarios', 'inventario', 'citas'
-    accion VARCHAR(100) NOT NULL, -- Ej: 'ver', 'crear', 'editar', 'eliminar'
-    ruta VARCHAR(255), -- Ruta frontend si aplica: '/admin/usuarios'
-    descripcion TEXT,
+    -- Heredadas de Auditable
+    created_by VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Control de acceso
-    permitido BOOLEAN DEFAULT TRUE,
-    
-    -- Auditoría
-    creado_por VARCHAR(255),
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    modificado_por VARCHAR(255),
-    fecha_modificacion TIMESTAMP,
-    activo BOOLEAN DEFAULT TRUE,
-    
-    -- Constraint para evitar duplicados
     CONSTRAINT uq_permisos_rol_modulo_accion UNIQUE (rol_id, modulo, accion)
 );
 
--- Índices para optimizar consultas de permisos
 CREATE INDEX idx_permisos_rol_rol_id ON permisos_rol(rol_id);
 CREATE INDEX idx_permisos_rol_modulo ON permisos_rol(modulo);
 CREATE INDEX idx_permisos_rol_activo ON permisos_rol(activo);
 
--- Insertar permisos base para ROL ADMIN (id=1)
-INSERT INTO permisos_rol (rol_id, modulo, accion, ruta, descripcion, permitido, creado_por, activo) VALUES
-(1, 'usuarios', 'ver', '/usuarios', 'Ver lista de usuarios', TRUE, 'SYSTEM', TRUE),
-(1, 'usuarios', 'crear', '/usuarios', 'Crear nuevos usuarios', TRUE, 'SYSTEM', TRUE),
-(1, 'usuarios', 'editar', '/usuarios', 'Editar usuarios existentes', TRUE, 'SYSTEM', TRUE),
-(1, 'usuarios', 'eliminar', '/usuarios', 'Eliminar usuarios', TRUE, 'SYSTEM', TRUE),
-(1, 'inventario', 'ver', '/admin/inventario', 'Ver inventario', TRUE, 'SYSTEM', TRUE),
-(1, 'inventario', 'gestionar', '/admin/inventario', 'Gestionar inventario completo', TRUE, 'SYSTEM', TRUE),
-(1, 'finanzas', 'ver', '/admin/finanzas', 'Ver finanzas', TRUE, 'SYSTEM', TRUE),
-(1, 'reportes', 'generar', '/reportes', 'Generar reportes', TRUE, 'SYSTEM', TRUE),
-(1, 'configuracion', 'gestionar', '/configuracion', 'Acceso total a configuración', TRUE, 'SYSTEM', TRUE);
-
--- Insertar permisos base para ROL VETERINARIO (id=2)
-INSERT INTO permisos_rol (rol_id, modulo, accion, ruta, descripcion, permitido, creado_por, activo) VALUES
-(2, 'pacientes', 'ver', '/veterinario/pacientes', 'Ver pacientes', TRUE, 'SYSTEM', TRUE),
-(2, 'pacientes', 'gestionar', '/veterinario/pacientes', 'Gestionar pacientes', TRUE, 'SYSTEM', TRUE),
-(2, 'historias', 'ver', '/veterinario/historias', 'Ver historias clínicas', TRUE, 'SYSTEM', TRUE),
-(2, 'historias', 'editar', '/veterinario/historias', 'Editar historias clínicas', TRUE, 'SYSTEM', TRUE),
-(2, 'consultas', 'realizar', '/veterinario/consultas', 'Realizar consultas', TRUE, 'SYSTEM', TRUE),
-(2, 'citas', 'gestionar', '/veterinario/agenda', 'Gestionar agenda de citas', TRUE, 'SYSTEM', TRUE),
-(2, 'inventario', 'ver', '/veterinario/inventario', 'Ver inventario disponible', TRUE, 'SYSTEM', TRUE);
-
--- Insertar permisos base para ROL SECRETARIO (id=3)
-INSERT INTO permisos_rol (rol_id, modulo, accion, ruta, descripcion, permitido, creado_por, activo) VALUES
-(3, 'citas', 'ver', '/secretario/citas', 'Ver citas', TRUE, 'SYSTEM', TRUE),
-(3, 'citas', 'crear', '/secretario/citas', 'Crear citas', TRUE, 'SYSTEM', TRUE),
-(3, 'citas', 'editar', '/secretario/citas', 'Editar citas', TRUE, 'SYSTEM', TRUE),
-(3, 'clientes', 'ver', '/clientes', 'Ver clientes', TRUE, 'SYSTEM', TRUE),
-(3, 'clientes', 'gestionar', '/clientes', 'Gestionar clientes', TRUE, 'SYSTEM', TRUE),
-(3, 'facturas', 'ver', '/secretario/facturas', 'Ver facturas', TRUE, 'SYSTEM', TRUE),
-(3, 'facturas', 'crear', '/secretario/facturas', 'Crear facturas', TRUE, 'SYSTEM', TRUE),
-(3, 'inventario', 'ver', '/secretario/inventario', 'Ver inventario', TRUE, 'SYSTEM', TRUE),
-(3, 'notificaciones', 'enviar', '/notificaciones', 'Enviar notificaciones', TRUE, 'SYSTEM', TRUE);
-
--- Insertar permisos base para ROL CLIENTE (id=4)
-INSERT INTO permisos_rol (rol_id, modulo, accion, ruta, descripcion, permitido, creado_por, activo) VALUES
-(4, 'mascotas', 'ver', '/cliente/mascotas', 'Ver mis mascotas', TRUE, 'SYSTEM', TRUE),
-(4, 'citas', 'ver', '/cliente/citas', 'Ver mis citas', TRUE, 'SYSTEM', TRUE),
-(4, 'citas', 'solicitar', '/cliente/citas', 'Solicitar citas', TRUE, 'SYSTEM', TRUE),
-(4, 'historial', 'ver', '/cliente/historial', 'Ver historial médico', TRUE, 'SYSTEM', TRUE),
-(4, 'facturas', 'ver', '/cliente/facturas', 'Ver mis facturas', TRUE, 'SYSTEM', TRUE);
+INSERT INTO permisos_rol (rol_id, modulo, accion, descripcion, activo, created_by) VALUES
+(1, 'usuarios', 'leer', 'Ver lista de usuarios', TRUE, 'SYSTEM'),
+(1, 'usuarios', 'crear', 'Crear nuevos usuarios', TRUE, 'SYSTEM'),
+(1, 'usuarios', 'editar', 'Editar usuarios', TRUE, 'SYSTEM'),
+(1, 'usuarios', 'eliminar', 'Eliminar usuarios', TRUE, 'SYSTEM'),
+(1, 'inventario', 'leer', 'Ver inventario', TRUE, 'SYSTEM'),
+(1, 'inventario', 'gestionar', 'Gestionar inventario', TRUE, 'SYSTEM'),
+(1, 'reportes', 'generar', 'Generar reportes', TRUE, 'SYSTEM'),
+(1, 'configuracion', 'gestionar', 'Acceso total a configuración', TRUE, 'SYSTEM'),
+(2, 'pacientes', 'leer', 'Ver pacientes', TRUE, 'SYSTEM'),
+(2, 'pacientes', 'gestionar', 'Gestionar pacientes', TRUE, 'SYSTEM'),
+(2, 'historias', 'leer', 'Ver historias clínicas', TRUE, 'SYSTEM'),
+(2, 'historias', 'escribir', 'Editar historias clínicas', TRUE, 'SYSTEM'),
+(2, 'consultas', 'realizar', 'Realizar consultas', TRUE, 'SYSTEM'),
+(3, 'citas', 'leer', 'Ver citas', TRUE, 'SYSTEM'),
+(3, 'citas', 'crear', 'Crear citas', TRUE, 'SYSTEM'),
+(3, 'citas', 'editar', 'Editar citas', TRUE, 'SYSTEM'),
+(3, 'clientes', 'leer', 'Ver clientes', TRUE, 'SYSTEM'),
+(3, 'facturas', 'leer', 'Ver facturas', TRUE, 'SYSTEM'),
+(4, 'citas', 'leer', 'Ver mis citas', TRUE, 'SYSTEM'),
+(4, 'citas', 'solicitar', 'Solicitar citas', TRUE, 'SYSTEM'),
+(4, 'facturas', 'leer', 'Ver mis facturas', TRUE, 'SYSTEM');
 
 -- =====================================================
--- 3. SERVICIOS VETERINARIOS
--- Tabla para gestionar los servicios que ofrece la clínica
--- Se sincroniza con la tabla 'servicio' existente pero con gestión adicional
+-- 3. SERVICIOS CONFIGURACIÓN
 -- =====================================================
+-- Campos: idServicioConfig, servicioId, nombreServicio, descripcion, precio, duracionMinutos, categoria, activo
+-- Extends: Auditable
 CREATE TABLE IF NOT EXISTS servicios_configuracion (
-    id BIGSERIAL PRIMARY KEY,
-    servicio_id BIGINT REFERENCES servicios(id_servicio) ON DELETE SET NULL,
-    
-    -- Información del servicio
-    nombre VARCHAR(255) NOT NULL,
+    id_servicio_config BIGSERIAL PRIMARY KEY,
+    servicio_id BIGINT,
+    nombre_servicio VARCHAR(100) NOT NULL,
     descripcion TEXT,
-    precio_base DECIMAL(10,2) NOT NULL,
-    duracion_estimada_minutos INTEGER DEFAULT 30,
+    precio DECIMAL(10, 2),
+    duracion_minutos INTEGER,
+    categoria VARCHAR(50),
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
     
-    -- Configuración
-    disponible BOOLEAN DEFAULT TRUE,
-    requiere_cita BOOLEAN DEFAULT TRUE,
-    color_hex VARCHAR(7) DEFAULT '#3B82F6', -- Para UI
-    icono VARCHAR(50), -- Nombre del ícono para frontend
-    
-    -- Auditoría
-    creado_por VARCHAR(255),
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    modificado_por VARCHAR(255),
-    fecha_modificacion TIMESTAMP,
-    activo BOOLEAN DEFAULT TRUE
+    -- Heredadas de Auditable
+    created_by VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índices
-CREATE INDEX idx_servicios_config_disponible ON servicios_configuracion(disponible);
 CREATE INDEX idx_servicios_config_activo ON servicios_configuracion(activo);
-CREATE INDEX idx_servicios_config_servicio_id ON servicios_configuracion(servicio_id);
+CREATE INDEX idx_servicios_config_categoria ON servicios_configuracion(categoria);
 
--- Insertar servicios iniciales
-INSERT INTO servicios_configuracion (nombre, descripcion, precio_base, duracion_estimada_minutos, disponible, requiere_cita, color_hex, icono, creado_por, activo) VALUES
-('Consulta General', 'Examen médico completo y diagnóstico', 250000.00, 30, TRUE, TRUE, '#3B82F6', 'stethoscope', 'SYSTEM', TRUE),
-('Vacunación', 'Aplicación de vacunas y esquema de inmunización', 180000.00, 20, TRUE, TRUE, '#10B981', 'syringe', 'SYSTEM', TRUE),
-('Cirugía', 'Procedimientos quirúrgicos y atención especializada', 450000.00, 120, TRUE, TRUE, '#EF4444', 'scissors', 'SYSTEM', TRUE),
-('Control', 'Seguimiento y control post-tratamiento', 150000.00, 20, TRUE, TRUE, '#8B5CF6', 'clipboard', 'SYSTEM', TRUE),
-('Desparasitación', 'Tratamiento antiparasitario interno y externo', 80000.00, 15, TRUE, TRUE, '#F59E0B', 'bug', 'SYSTEM', TRUE);
+INSERT INTO servicios_configuracion (nombre_servicio, descripcion, precio, duracion_minutos, categoria, activo, created_by) VALUES
+('Consulta General', 'Examen médico completo y diagnóstico', 250000.00, 30, 'Consulta', TRUE, 'SYSTEM'),
+('Vacunación', 'Aplicación de vacunas', 180000.00, 20, 'Prevención', TRUE, 'SYSTEM'),
+('Cirugía', 'Procedimientos quirúrgicos', 450000.00, 120, 'Cirugía', TRUE, 'SYSTEM'),
+('Control', 'Seguimiento post-tratamiento', 150000.00, 20, 'Consulta', TRUE, 'SYSTEM'),
+('Desparasitación', 'Tratamiento antiparasitario', 80000.00, 15, 'Prevención', TRUE, 'SYSTEM');
 
 -- =====================================================
 -- 4. HORARIOS DE ATENCIÓN
--- Tabla para gestionar los horarios de atención de la clínica
--- Permite configurar horarios diferentes para cada día de la semana
 -- =====================================================
+-- Campos: idHorario, diaSemana (ENUM STRING), horaApertura, horaCierre, cerrado, notas
+-- Extends: Auditable
 CREATE TABLE IF NOT EXISTS horarios_atencion (
-    id BIGSERIAL PRIMARY KEY,
+    id_horario BIGSERIAL PRIMARY KEY,
+    dia_semana VARCHAR(20) NOT NULL,
+    hora_apertura TIME,
+    hora_cierre TIME,
+    cerrado BOOLEAN NOT NULL DEFAULT FALSE,
+    notas VARCHAR(200),
     
-    -- Día de la semana (1=Lunes, 7=Domingo)
-    dia_semana INTEGER NOT NULL CHECK (dia_semana BETWEEN 1 AND 7),
+    -- Heredadas de Auditable
+    created_by VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Horarios
-    hora_apertura TIME NOT NULL,
-    hora_cierre TIME NOT NULL,
-    
-    -- Control
-    abierto BOOLEAN DEFAULT TRUE,
-    descripcion VARCHAR(255), -- Ej: "Horario de atención regular", "Cerrado"
-    
-    -- Auditoría
-    creado_por VARCHAR(255),
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    modificado_por VARCHAR(255),
-    fecha_modificacion TIMESTAMP,
-    activo BOOLEAN DEFAULT TRUE,
-    
-    -- Constraint para evitar duplicados
-    CONSTRAINT uq_horarios_atencion_dia UNIQUE (dia_semana, activo),
-    
-    -- Constraint para validar horarios
-    CONSTRAINT chk_horarios_validos CHECK (hora_cierre > hora_apertura)
+    CONSTRAINT uq_horarios_atencion_dia UNIQUE (dia_semana),
+    CONSTRAINT chk_dia_semana CHECK (dia_semana IN ('LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO'))
 );
 
--- Índices
 CREATE INDEX idx_horarios_atencion_dia ON horarios_atencion(dia_semana);
-CREATE INDEX idx_horarios_atencion_activo ON horarios_atencion(activo);
 
--- Insertar horarios iniciales (Lunes a Viernes 8:00 AM - 6:00 PM, Sábados 9:00 AM - 6:00 PM)
-INSERT INTO horarios_atencion (dia_semana, hora_apertura, hora_cierre, abierto, descripcion, creado_por, activo) VALUES
-(1, '08:00:00', '18:00:00', TRUE, 'Lunes a Viernes - Horario de atención regular', 'SYSTEM', TRUE),
-(2, '08:00:00', '18:00:00', TRUE, 'Lunes a Viernes - Horario de atención regular', 'SYSTEM', TRUE),
-(3, '08:00:00', '18:00:00', TRUE, 'Lunes a Viernes - Horario de atención regular', 'SYSTEM', TRUE),
-(4, '08:00:00', '18:00:00', TRUE, 'Lunes a Viernes - Horario de atención regular', 'SYSTEM', TRUE),
-(5, '08:00:00', '18:00:00', TRUE, 'Lunes a Viernes - Horario de atención regular', 'SYSTEM', TRUE),
-(6, '09:00:00', '18:00:00', TRUE, 'Sábados - Horario de atención fin de semana', 'SYSTEM', TRUE),
-(7, '08:00:00', '12:00:00', FALSE, 'Domingos y Festivos - Cerrado', 'SYSTEM', TRUE);
+INSERT INTO horarios_atencion (dia_semana, hora_apertura, hora_cierre, cerrado, notas, created_by) VALUES
+('LUNES', '08:00:00', '18:00:00', FALSE, 'Horario normal', 'SYSTEM'),
+('MARTES', '08:00:00', '18:00:00', FALSE, 'Horario normal', 'SYSTEM'),
+('MIERCOLES', '08:00:00', '18:00:00', FALSE, 'Horario normal', 'SYSTEM'),
+('JUEVES', '08:00:00', '18:00:00', FALSE, 'Horario normal', 'SYSTEM'),
+('VIERNES', '08:00:00', '18:00:00', FALSE, 'Horario normal', 'SYSTEM'),
+('SABADO', '09:00:00', '18:00:00', FALSE, 'Horario reducido', 'SYSTEM'),
+('DOMINGO', NULL, NULL, TRUE, 'Cerrado', 'SYSTEM');
 
 -- =====================================================
--- 5. AUDITORÍA CONTEXTUAL POR ROL
--- Ampliar la tabla historial_acciones existente con más contexto
--- Esto complementa la tabla existente sin modificarla
+-- 5. AUDITORÍA DETALLADA
 -- =====================================================
+-- Campos: idAuditoria, usuarioId, tipoAccion, entidad, entidadId, 
+--         datosAntes, datosDespues, ipOrigen, userAgent, descripcion
+-- Extends: Auditable
 CREATE TABLE IF NOT EXISTS auditoria_detallada (
-    id BIGSERIAL PRIMARY KEY,
-    historial_accion_id BIGINT REFERENCES historial_acciones(id_accion) ON DELETE CASCADE,
-    
-    -- Contexto adicional
+    id_auditoria BIGSERIAL PRIMARY KEY,
     usuario_id BIGINT NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
-    rol_nombre VARCHAR(50) NOT NULL, -- Nombre del rol para búsqueda rápida
+    tipo_accion VARCHAR(50) NOT NULL,
+    entidad VARCHAR(100) NOT NULL,
+    entidad_id BIGINT,
+    datos_antes JSONB,
+    datos_despues JSONB,
+    ip_origen VARCHAR(45),
+    user_agent VARCHAR(500),
+    descripcion TEXT,
     
-    -- Detalles de la acción
-    modulo VARCHAR(100) NOT NULL, -- Módulo afectado
-    entidad VARCHAR(100), -- Entidad afectada (Usuario, Cita, Paciente, etc.)
-    entidad_id BIGINT, -- ID de la entidad afectada
-    
-    -- Datos antes/después (Patrón Memento)
-    datos_anteriores JSONB, -- Estado anterior en formato JSON
-    datos_nuevos JSONB, -- Estado nuevo en formato JSON
-    
-    -- Metadata
-    relevancia VARCHAR(20) DEFAULT 'NORMAL', -- ALTA, NORMAL, BAJA
-    requiere_revision BOOLEAN DEFAULT FALSE,
-    ip_address VARCHAR(45),
-    user_agent TEXT,
-    
-    -- Auditoría
-    fecha_accion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    -- Índice para búsquedas
-    CONSTRAINT chk_relevancia CHECK (relevancia IN ('ALTA', 'NORMAL', 'BAJA'))
+    -- Heredadas de Auditable
+    created_by VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índices para optimizar consultas de auditoría
 CREATE INDEX idx_auditoria_usuario ON auditoria_detallada(usuario_id);
-CREATE INDEX idx_auditoria_rol ON auditoria_detallada(rol_nombre);
-CREATE INDEX idx_auditoria_modulo ON auditoria_detallada(modulo);
+CREATE INDEX idx_auditoria_tipo_accion ON auditoria_detallada(tipo_accion);
 CREATE INDEX idx_auditoria_entidad ON auditoria_detallada(entidad, entidad_id);
-CREATE INDEX idx_auditoria_fecha ON auditoria_detallada(fecha_accion DESC);
-CREATE INDEX idx_auditoria_relevancia ON auditoria_detallada(relevancia);
+CREATE INDEX idx_auditoria_created_at ON auditoria_detallada(created_at DESC);
 
 -- =====================================================
 -- 6. RESPALDOS DEL SISTEMA
--- Tabla para gestionar respaldos automáticos y manuales
--- Implementa el patrón Memento para restauración
 -- =====================================================
+-- Campos: idRespaldo, usuarioId, fechaRespaldo, tipoRespaldo, 
+--         rutaArchivo, tamanoBytes, hashVerificacion, estado, descripcion, errorMensaje
+-- Extends: Auditable
 CREATE TABLE IF NOT EXISTS respaldos_sistema (
-    id BIGSERIAL PRIMARY KEY,
-    
-    -- Información del respaldo
-    nombre VARCHAR(255) NOT NULL,
+    id_respaldo BIGSERIAL PRIMARY KEY,
+    usuario_id BIGINT NOT NULL REFERENCES usuarios(id_usuario) ON DELETE SET NULL,
+    fecha_respaldo TIMESTAMP NOT NULL,
+    tipo_respaldo VARCHAR(20) NOT NULL,
+    ruta_archivo VARCHAR(500) NOT NULL,
+    tamano_bytes BIGINT,
+    hash_verificacion VARCHAR(64),
+    estado VARCHAR(20) NOT NULL,
     descripcion TEXT,
-    tipo VARCHAR(20) NOT NULL, -- 'AUTOMATICO' o 'MANUAL'
+    error_mensaje TEXT,
     
-    -- Datos del respaldo
-    ruta_archivo VARCHAR(500) NOT NULL, -- Ruta donde se guardó el backup
-    tamano_bytes BIGINT, -- Tamaño del archivo
-    hash_verificacion VARCHAR(64), -- SHA-256 para verificar integridad
+    -- Heredadas de Auditable
+    created_by VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Metadata
-    fecha_respaldo TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    fecha_expiracion TIMESTAMP, -- Cuándo se debe eliminar automáticamente
-    
-    -- Estado
-    estado VARCHAR(20) DEFAULT 'EXITOSO', -- EXITOSO, FALLIDO, EN_PROGRESO
-    puede_restaurar BOOLEAN DEFAULT TRUE,
-    
-    -- Auditoría
-    creado_por VARCHAR(255),
-    restaurado_por VARCHAR(255),
-    fecha_restauracion TIMESTAMP,
-    
-    -- Constraints
-    CONSTRAINT chk_tipo_respaldo CHECK (tipo IN ('AUTOMATICO', 'MANUAL')),
-    CONSTRAINT chk_estado_respaldo CHECK (estado IN ('EXITOSO', 'FALLIDO', 'EN_PROGRESO'))
+    CONSTRAINT chk_tipo_respaldo CHECK (tipo_respaldo IN ('COMPLETO', 'INCREMENTAL', 'DIFERENCIAL', 'CONFIGURACION')),
+    CONSTRAINT chk_estado_respaldo CHECK (estado IN ('COMPLETADO', 'EN_PROCESO', 'FALLIDO', 'CORRUPTO', 'RESTAURADO'))
 );
 
--- Índices
-CREATE INDEX idx_respaldos_tipo ON respaldos_sistema(tipo);
+CREATE INDEX idx_respaldos_usuario ON respaldos_sistema(usuario_id);
+CREATE INDEX idx_respaldos_tipo ON respaldos_sistema(tipo_respaldo);
 CREATE INDEX idx_respaldos_fecha ON respaldos_sistema(fecha_respaldo DESC);
 CREATE INDEX idx_respaldos_estado ON respaldos_sistema(estado);
-CREATE INDEX idx_respaldos_puede_restaurar ON respaldos_sistema(puede_restaurar);
 
 -- =====================================================
--- 7. PARÁMETROS DE CONFIGURACIÓN (Mejorar tabla existente)
--- Esta tabla complementa parameter_sistema para configuraciones específicas
+-- 7. CONFIGURACIÓN AVANZADA
 -- =====================================================
+-- Campos: idConfiguracion, clave, valor, categoria, tipoDato, descripcion, editable, activo
+-- Extends: Auditable
 CREATE TABLE IF NOT EXISTS configuracion_avanzada (
-    id BIGSERIAL PRIMARY KEY,
-    
-    -- Clave-valor
+    id_configuracion BIGSERIAL PRIMARY KEY,
     clave VARCHAR(100) NOT NULL UNIQUE,
     valor TEXT NOT NULL,
+    categoria VARCHAR(50),
+    tipo_dato VARCHAR(20) NOT NULL,
+    descripcion VARCHAR(500),
+    editable BOOLEAN NOT NULL DEFAULT TRUE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
     
-    -- Metadata
-    categoria VARCHAR(50) NOT NULL, -- 'SISTEMA', 'HORARIOS', 'NOTIFICACIONES', etc.
-    tipo_dato VARCHAR(20) NOT NULL, -- 'STRING', 'INTEGER', 'BOOLEAN', 'JSON'
-    descripcion TEXT,
+    -- Heredadas de Auditable
+    created_by VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Validación
-    valor_por_defecto TEXT,
-    requerido BOOLEAN DEFAULT FALSE,
-    editable BOOLEAN DEFAULT TRUE,
-    
-    -- Auditoría
-    creado_por VARCHAR(255),
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    modificado_por VARCHAR(255),
-    fecha_modificacion TIMESTAMP,
-    
-    -- Constraints
-    CONSTRAINT chk_tipo_dato CHECK (tipo_dato IN ('STRING', 'INTEGER', 'BOOLEAN', 'JSON', 'DECIMAL'))
+    CONSTRAINT chk_tipo_dato CHECK (tipo_dato IN ('STRING', 'INTEGER', 'BOOLEAN', 'JSON', 'DECIMAL', 'DATE', 'TIME'))
 );
 
--- Índices
-CREATE INDEX idx_config_avanzada_categoria ON configuracion_avanzada(categoria);
-CREATE INDEX idx_config_avanzada_editable ON configuracion_avanzada(editable);
+CREATE INDEX idx_config_categoria ON configuracion_avanzada(categoria);
+CREATE INDEX idx_config_editable ON configuracion_avanzada(editable);
+CREATE INDEX idx_config_activo ON configuracion_avanzada(activo);
 
--- Insertar configuraciones iniciales
-INSERT INTO configuracion_avanzada (clave, valor, categoria, tipo_dato, descripcion, valor_por_defecto, requerido, editable, creado_por) VALUES
--- Configuración de respaldos
-('respaldos.automaticos.habilitado', 'true', 'RESPALDOS', 'BOOLEAN', 'Habilitar respaldos automáticos diarios', 'true', TRUE, TRUE, 'SYSTEM'),
-('respaldos.automaticos.hora', '02:00', 'RESPALDOS', 'STRING', 'Hora de ejecución de respaldos automáticos (HH:MM)', '02:00', TRUE, TRUE, 'SYSTEM'),
-('respaldos.retencion.dias', '30', 'RESPALDOS', 'INTEGER', 'Días de retención de respaldos antiguos', '30', TRUE, TRUE, 'SYSTEM'),
-('respaldos.ubicacion', '/var/backups/veterinaria', 'RESPALDOS', 'STRING', 'Ubicación de almacenamiento de respaldos', '/var/backups/veterinaria', TRUE, TRUE, 'SYSTEM'),
-
--- Configuración de auditoría
-('auditoria.retener.dias', '90', 'AUDITORIA', 'INTEGER', 'Días de retención del historial de auditoría', '90', TRUE, TRUE, 'SYSTEM'),
-('auditoria.nivel.detalle', 'NORMAL', 'AUDITORIA', 'STRING', 'Nivel de detalle de auditoría (MINIMO, NORMAL, COMPLETO)', 'NORMAL', TRUE, TRUE, 'SYSTEM'),
-
--- Configuración de citas
-('citas.duracion.estandar', '30', 'CITAS', 'INTEGER', 'Duración estándar de citas en minutos', '30', TRUE, TRUE, 'SYSTEM'),
-('citas.maximo.dia', '12', 'CITAS', 'INTEGER', 'Máximo de citas por día', '12', TRUE, TRUE, 'SYSTEM'),
-('citas.anticipacion.horas', '24', 'CITAS', 'INTEGER', 'Horas de anticipación para agendar citas', '24', TRUE, TRUE, 'SYSTEM'),
-('citas.cancelacion.horas', '12', 'CITAS', 'INTEGER', 'Horas máximas para cancelar citas', '12', TRUE, TRUE, 'SYSTEM');
-
--- =====================================================
--- COMENTARIOS FINALES
--- =====================================================
--- Esta migración crea la estructura base para el módulo de configuración
--- siguiendo principios SOLID y patrones de diseño.
--- 
--- Próximos pasos:
--- 1. Implementar entidades JPA correspondientes
--- 2. Crear servicios con patrones Singleton, Command y Memento
--- 3. Desarrollar controllers REST
--- 4. Implementar frontend con consumo dinámico
--- =====================================================
+INSERT INTO configuracion_avanzada (clave, valor, categoria, tipo_dato, descripcion, editable, activo, created_by) VALUES
+('respaldos.automaticos.habilitado', 'true', 'RESPALDOS', 'BOOLEAN', 'Habilitar respaldos automáticos', TRUE, TRUE, 'SYSTEM'),
+('respaldos.automaticos.hora', '02:00', 'RESPALDOS', 'STRING', 'Hora de ejecución de respaldos', TRUE, TRUE, 'SYSTEM'),
+('respaldos.retencion.dias', '30', 'RESPALDOS', 'INTEGER', 'Días de retención', TRUE, TRUE, 'SYSTEM'),
+('auditoria.retener.dias', '90', 'AUDITORIA', 'INTEGER', 'Días de retención de auditoría', TRUE, TRUE, 'SYSTEM'),
+('citas.duracion.estandar', '30', 'CITAS', 'INTEGER', 'Duración estándar en minutos', TRUE, TRUE, 'SYSTEM'),
+('citas.maximo.dia', '12', 'CITAS', 'INTEGER', 'Máximo de citas por día', TRUE, TRUE, 'SYSTEM'),
+('citas.anticipacion.horas', '24', 'CITAS', 'INTEGER', 'Horas de anticipación para agendar', TRUE, TRUE, 'SYSTEM');

@@ -1,6 +1,7 @@
 package com.tuorg.veterinaria.reportes.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tuorg.veterinaria.common.exception.BusinessException;
 import com.tuorg.veterinaria.reportes.dto.EstadisticaResponse;
@@ -13,10 +14,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 /**
@@ -62,25 +65,86 @@ public class ReporteService {
     }
 
     /**
-     * Exporta un reporte como PDF (implementación placeholder).
+     * Exporta un reporte en formato de texto estructurado para descarga.
      */
     @Transactional(readOnly = true)
     public byte[] exportarPDF(Long reporteId) {
-        reporteRepository.findById(reporteId)
+        Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new BusinessException("Reporte no encontrado para exportar a PDF"));
-        // TODO: Implementar generación real de PDF con iText o JasperReports
-        return new byte[0];
+
+        List<Estadistica> estadisticas = estadisticaService.calcularEstadisticasParaReporte(
+                reporte.getTipo(),
+                toMap(reporte.getParametros())
+        );
+
+        StringBuilder contenido = new StringBuilder();
+        contenido.append("CLINICA VETERINARIA HUMBOLDT\n");
+        contenido.append("REPORTE: ").append(reporte.getNombre()).append("\n");
+        contenido.append("TIPO: ").append(reporte.getTipo()).append("\n");
+        contenido.append("FECHA GENERACION: ").append(reporte.getFechaGeneracion()).append("\n");
+        contenido.append("GENERADO POR: ").append(reporte.getGeneradoPor()).append("\n\n");
+        contenido.append("ESTADISTICAS\n");
+
+        if (estadisticas.isEmpty()) {
+            contenido.append("- Sin datos para el período solicitado\n");
+        } else {
+            for (Estadistica estadistica : estadisticas) {
+                contenido.append("- ")
+                        .append(estadistica.getNombre())
+                        .append(": ")
+                        .append(estadistica.getValor())
+                        .append(" (")
+                        .append(estadistica.getPeriodoInicio())
+                        .append(" a ")
+                        .append(estadistica.getPeriodoFin())
+                        .append(")\n");
+            }
+        }
+
+        return contenido.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     /**
-     * Exporta un reporte como Excel (implementación placeholder).
+     * Exporta un reporte en formato CSV para análisis en hojas de cálculo.
      */
     @Transactional(readOnly = true)
     public byte[] exportarExcel(Long reporteId) {
-        reporteRepository.findById(reporteId)
+        Reporte reporte = reporteRepository.findById(reporteId)
                 .orElseThrow(() -> new BusinessException("Reporte no encontrado para exportar a Excel"));
-        // TODO: Implementar generación real de Excel con Apache POI
-        return new byte[0];
+
+        List<Estadistica> estadisticas = estadisticaService.calcularEstadisticasParaReporte(
+                reporte.getTipo(),
+                toMap(reporte.getParametros())
+        );
+
+        StringJoiner csv = new StringJoiner("\n");
+        csv.add("reporte,tipo,fecha_generacion,generado_por,estadistica,valor,periodo_inicio,periodo_fin");
+
+        if (estadisticas.isEmpty()) {
+            csv.add(String.format("\"%s\",\"%s\",\"%s\",%d,\"%s\",%s,%s,%s",
+                    reporte.getNombre(),
+                    reporte.getTipo(),
+                    reporte.getFechaGeneracion(),
+                    reporte.getGeneradoPor(),
+                    "Sin datos",
+                    "0",
+                    "",
+                    ""));
+        } else {
+            for (Estadistica estadistica : estadisticas) {
+                csv.add(String.format("\"%s\",\"%s\",\"%s\",%d,\"%s\",%s,%s,%s",
+                        reporte.getNombre(),
+                        reporte.getTipo(),
+                        reporte.getFechaGeneracion(),
+                        reporte.getGeneradoPor(),
+                        estadistica.getNombre(),
+                        estadistica.getValor(),
+                        estadistica.getPeriodoInicio(),
+                        estadistica.getPeriodoFin()));
+            }
+        }
+
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     private ReporteResponse mapToResponse(Reporte reporte, List<Estadistica> estadisticas) {
@@ -123,7 +187,7 @@ public class ReporteService {
             return Collections.emptyMap();
         }
         try {
-            return objectMapper.readValue(parametrosJson, Map.class);
+            return objectMapper.readValue(parametrosJson, new TypeReference<Map<String, Object>>() {});
         } catch (JsonProcessingException e) {
             return Collections.emptyMap();
         }

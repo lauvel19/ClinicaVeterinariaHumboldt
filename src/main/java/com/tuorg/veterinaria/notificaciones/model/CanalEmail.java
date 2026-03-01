@@ -178,9 +178,6 @@ public class CanalEmail extends CanalEnvio {
             .replace("❌ ", "")
             .trim();
         
-        // Logo de la clínica (URL pública o base64)
-        String logoUrl = "https://i.imgur.com/placeholder-vet-logo.png"; // Cambiar por URL real del logo
-        
         return """
             <!DOCTYPE html>
             <html lang="es">

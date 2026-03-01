@@ -683,6 +683,7 @@ public class CitaService {
      * @param cita La cita que se acaba de crear
      */
     @Deprecated
+    @SuppressWarnings("unused")
     private void enviarNotificacionCitaCreada(Cita cita) {
         try {
             Paciente paciente = cita.getPaciente();
@@ -751,6 +752,7 @@ public class CitaService {
      * @param cita La cita que se acaba de reprogramar
      * @param fechaAnterior La fecha anterior de la cita
      */
+    @SuppressWarnings("unused")
     private void enviarNotificacionCitaReprogramada(Cita cita, LocalDateTime fechaAnterior) {
         try {
             Paciente paciente = cita.getPaciente();
