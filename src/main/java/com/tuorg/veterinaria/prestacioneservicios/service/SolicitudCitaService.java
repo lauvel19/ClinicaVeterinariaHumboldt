@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 /**
  * Servicio para gestión de solicitudes de cita del portal del cliente.
@@ -57,25 +58,26 @@ public class SolicitudCitaService {
         log.info("📝 Creando solicitud de cita para cliente: {}", clienteId);
 
         // Validar cliente
-        Cliente cliente = (Cliente) usuarioRepository.findById(clienteId)
+        Cliente cliente = (Cliente) usuarioRepository.findById(Objects.requireNonNull(clienteId))
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente", "id", clienteId));
 
-        // 🔴 VALIDACIÓN CRÍTICA 1: Cliente no puede tener solicitudes pendientes o aprobadas
+        // 🔴 VALIDACIÓN CRÍTICA 1: Cliente no puede tener solicitudes pendientes o
+        // aprobadas
         long solicitudesActivas = solicitudCitaRepository
                 .findByClienteId(clienteId)
                 .stream()
-                .filter(s -> AppConstants.ESTADO_SOLICITUD_PENDIENTE.equals(s.getEstado()) || AppConstants.ESTADO_SOLICITUD_APROBADA.equals(s.getEstado()))
+                .filter(s -> AppConstants.ESTADO_SOLICITUD_PENDIENTE.equals(s.getEstado())
+                        || AppConstants.ESTADO_SOLICITUD_APROBADA.equals(s.getEstado()))
                 .count();
 
         if (solicitudesActivas > 0) {
             throw new BusinessException(
-                "Cliente ya tiene una solicitud pendiente o aprobada. " +
-                "Debe resolver la solicitud actual antes de crear una nueva."
-            );
+                    "Cliente ya tiene una solicitud pendiente o aprobada. " +
+                            "Debe resolver la solicitud actual antes de crear una nueva.");
         }
 
         // Validar paciente
-        Paciente paciente = pacienteRepository.findById(request.getPacienteId())
+        Paciente paciente = pacienteRepository.findById(Objects.requireNonNull(request.getPacienteId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente", "id", request.getPacienteId()));
 
         // Validar que el paciente pertenece al cliente
@@ -91,14 +93,12 @@ public class SolicitudCitaService {
         // 🔴 VALIDACIÓN CRÍTICA 2: Validar anticipación mínima
         LocalDateTime fechaHoraSolicitada = LocalDateTime.of(
                 request.getFechaSolicitada(),
-                request.getHoraSolicitada()
-        );
+                request.getHoraSolicitada());
         LocalDateTime anticipacionMinima = LocalDateTime.now().plusHours(AppConstants.ANTICIPACION_MINIMA_HORAS);
         if (fechaHoraSolicitada.isBefore(anticipacionMinima)) {
             throw new BusinessException(
-                "Debe solicitar la cita con al menos " + AppConstants.ANTICIPACION_MINIMA_HORAS + 
-                " horas de anticipación"
-            );
+                    "Debe solicitar la cita con al menos " + AppConstants.ANTICIPACION_MINIMA_HORAS +
+                            " horas de anticipación");
         }
 
         // 🔴 VALIDACIÓN CRÍTICA 4: Validar disponibilidad de stock
@@ -106,12 +106,11 @@ public class SolicitudCitaService {
                 .stream()
                 .filter(p -> p.getStock() > 0)
                 .count();
-        
+
         if (productosDisponibles == 0) {
             throw new BusinessException(
-                "No hay productos disponibles en inventario. " +
-                "No es posible agendar citas en este momento."
-            );
+                    "No hay productos disponibles en inventario. " +
+                            "No es posible agendar citas en este momento.");
         }
 
         // Crear solicitud
@@ -125,7 +124,7 @@ public class SolicitudCitaService {
         solicitud.setObservaciones(request.getObservaciones());
         solicitud.setEstado(AppConstants.ESTADO_SOLICITUD_PENDIENTE);
 
-        SolicitudCita guardada = solicitudCitaRepository.save(solicitud);
+        SolicitudCita guardada = solicitudCitaRepository.save(Objects.requireNonNull(solicitud));
         log.info("✅ Solicitud de cita creada. ID: {}", guardada.getIdSolicitud());
 
         return mapToResponse(guardada);
@@ -139,7 +138,7 @@ public class SolicitudCitaService {
         log.info("🔍 Obteniendo solicitudes para cliente: {}", clienteId);
 
         // Validar que cliente existe
-        usuarioRepository.findById(clienteId)
+        usuarioRepository.findById(Objects.requireNonNull(clienteId))
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente", "id", clienteId));
 
         return solicitudCitaRepository.findByClienteId(clienteId, pageable)
@@ -153,7 +152,7 @@ public class SolicitudCitaService {
     public SolicitudCitaResponse obtener(Long id) {
         log.info("🔍 Obteniendo solicitud ID: {}", id);
 
-        SolicitudCita solicitud = solicitudCitaRepository.findById(id)
+        SolicitudCita solicitud = solicitudCitaRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud de cita", "id", id));
 
         return mapToResponse(solicitud);
@@ -180,7 +179,7 @@ public class SolicitudCitaService {
     public SolicitudCitaResponse aprobar(Long id, Long veterinarioId, Long secretarioId) {
         log.info("✅ Aprobando solicitud ID: {} por secretario: {}", id, secretarioId);
 
-        SolicitudCita solicitud = solicitudCitaRepository.findById(id)
+        SolicitudCita solicitud = solicitudCitaRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud de cita", "id", id));
 
         if (!AppConstants.ESTADO_SOLICITUD_PENDIENTE.equals(solicitud.getEstado())) {
@@ -190,8 +189,7 @@ public class SolicitudCitaService {
         // Construir la fecha y hora completa de la solicitud
         LocalDateTime fechaHoraSolicitada = LocalDateTime.of(
                 solicitud.getFechaSolicitada(),
-                solicitud.getHoraSolicitada()
-        );
+                solicitud.getHoraSolicitada());
 
         // Validar que la fecha no sea en el pasado
         if (fechaHoraSolicitada.isBefore(LocalDateTime.now())) {
@@ -201,8 +199,8 @@ public class SolicitudCitaService {
         // Validar anticipación mínima (2 horas)
         LocalDateTime anticipacionMinima = LocalDateTime.now().plusHours(AppConstants.ANTICIPACION_MINIMA_HORAS);
         if (fechaHoraSolicitada.isBefore(anticipacionMinima)) {
-            throw new BusinessException("La cita debe tener al menos " + 
-                AppConstants.ANTICIPACION_MINIMA_HORAS + " horas de anticipación");
+            throw new BusinessException("La cita debe tener al menos " +
+                    AppConstants.ANTICIPACION_MINIMA_HORAS + " horas de anticipación");
         }
 
         // Validar horario laboral (uses CitaService's validation logic)
@@ -211,12 +209,11 @@ public class SolicitudCitaService {
         // Validar disponibilidad del veterinario
         if (!citaService.verificarDisponibilidad(veterinarioId, fechaHoraSolicitada)) {
             throw new BusinessException(
-                "El veterinario no está disponible en esa fecha y hora. Por favor, seleccione otro horario"
-            );
+                    "El veterinario no está disponible en esa fecha y hora. Por favor, seleccione otro horario");
         }
 
         // Validar que el veterinario existe y está activo
-        Usuario usuarioVeterinario = usuarioRepository.findById(veterinarioId)
+        Usuario usuarioVeterinario = usuarioRepository.findById(Objects.requireNonNull(veterinarioId))
                 .orElseThrow(() -> new ResourceNotFoundException("Veterinario", "id", veterinarioId));
 
         if (!(usuarioVeterinario instanceof UsuarioVeterinario)) {
@@ -233,7 +230,7 @@ public class SolicitudCitaService {
             cita.setMotivo(solicitud.getMotivo());
             cita.setEstado(AppConstants.ESTADO_CITA_PROGRAMADA);
 
-            Cita citaGuardada = citaRepository.save(cita);
+            Cita citaGuardada = citaRepository.save(Objects.requireNonNull(cita));
             log.info("✅ Cita creada automáticamente. ID: {}", citaGuardada.getIdCita());
 
             // Actualizar solicitud con información de audit trail
@@ -243,7 +240,7 @@ public class SolicitudCitaService {
             solicitud.setAprobadoPor(secretarioId);
             solicitud.setAprobadoEn(LocalDateTime.now());
 
-            SolicitudCita actualizada = solicitudCitaRepository.save(solicitud);
+            SolicitudCita actualizada = solicitudCitaRepository.save(Objects.requireNonNull(solicitud));
             log.info("✅ Solicitud aprobada por usuario: {}", secretarioId);
 
             return mapToResponse(actualizada);
@@ -263,7 +260,7 @@ public class SolicitudCitaService {
     public SolicitudCitaResponse rechazar(Long id, String motivo, Long secretarioId) {
         log.info("❌ Rechazando solicitud ID: {} por secretario: {}", id, secretarioId);
 
-        SolicitudCita solicitud = solicitudCitaRepository.findById(id)
+        SolicitudCita solicitud = solicitudCitaRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud de cita", "id", id));
 
         if (!solicitud.getEstado().equals(AppConstants.ESTADO_SOLICITUD_PENDIENTE)) {
@@ -276,7 +273,7 @@ public class SolicitudCitaService {
         solicitud.setRechazadoPor(secretarioId);
         solicitud.setRechazadoEn(LocalDateTime.now());
 
-        SolicitudCita actualizada = solicitudCitaRepository.save(solicitud);
+        SolicitudCita actualizada = solicitudCitaRepository.save(Objects.requireNonNull(solicitud));
         log.info("✅ Solicitud rechazada por usuario: {}", secretarioId);
 
         return mapToResponse(actualizada);
@@ -285,14 +282,15 @@ public class SolicitudCitaService {
     /**
      * Cancela una solicitud de cita.
      * 
-     * 🔴 VALIDACIÓN CRÍTICA 3: Si la solicitud fue aprobada, cancela la cita automáticamente
+     * 🔴 VALIDACIÓN CRÍTICA 3: Si la solicitud fue aprobada, cancela la cita
+     * automáticamente
      * 🟡 AUDIT TRAIL: Registra quién canceló y cuándo
      */
     @Transactional
     public SolicitudCitaResponse cancelar(Long id, Long usuarioId) {
         log.info("🚫 Cancelando solicitud ID: {} por usuario: {}", id, usuarioId);
 
-        SolicitudCita solicitud = solicitudCitaRepository.findById(id)
+        SolicitudCita solicitud = solicitudCitaRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud de cita", "id", id));
 
         if (solicitud.getEstado().equals(AppConstants.ESTADO_SOLICITUD_CANCELADA)) {
@@ -302,9 +300,9 @@ public class SolicitudCitaService {
         // 🔴 VALIDACIÓN CRÍTICA 3: Si fue aprobada, cancelar cita automáticamente
         if (AppConstants.ESTADO_SOLICITUD_APROBADA.equals(solicitud.getEstado()) && solicitud.getCitaId() != null) {
             log.info("🚫 Cancelando cita asociada ID: {}", solicitud.getCitaId());
-            Cita cita = citaRepository.findById(solicitud.getCitaId())
+            Cita cita = citaRepository.findById(Objects.requireNonNull(solicitud.getCitaId()))
                     .orElseThrow(() -> new BusinessException("Cita asociada no encontrada"));
-            
+
             if (!AppConstants.ESTADO_CITA_CANCELADA.equals(cita.getEstado())) {
                 cita.setEstado(AppConstants.ESTADO_CITA_CANCELADA);
                 citaRepository.save(cita);
@@ -317,7 +315,7 @@ public class SolicitudCitaService {
         solicitud.setCanceladoPor(usuarioId);
         solicitud.setCanceladoEn(LocalDateTime.now());
 
-        SolicitudCita actualizada = solicitudCitaRepository.save(solicitud);
+        SolicitudCita actualizada = solicitudCitaRepository.save(Objects.requireNonNull(solicitud));
         log.info("✅ Solicitud cancelada por usuario: {}", usuarioId);
 
         return mapToResponse(actualizada);
@@ -344,44 +342,40 @@ public class SolicitudCitaService {
         java.time.DayOfWeek diaSemana = fechaHora.getDayOfWeek();
         int hora = fechaHora.getHour();
         int minuto = fechaHora.getMinute();
-        
+
         // Validar que no sea domingo
         if (diaSemana == java.time.DayOfWeek.SUNDAY) {
             throw new BusinessException(
-                "No se pueden agendar citas los domingos. " +
-                "Horario de atención: Lunes a Viernes 8:00-12:00 y 14:00-18:00, Sábados 8:00-12:00"
-            );
+                    "No se pueden agendar citas los domingos. " +
+                            "Horario de atención: Lunes a Viernes 8:00-12:00 y 14:00-18:00, Sábados 8:00-12:00");
         }
-        
+
         // Para sábados: solo horario de mañana (8:00-12:00)
         if (diaSemana == java.time.DayOfWeek.SATURDAY) {
-            boolean enHorarioSabado = 
-                (hora >= AppConstants.HORARIO_MANANA_INICIO && hora < AppConstants.HORARIO_MANANA_FIN) ||
-                (hora == AppConstants.HORARIO_MANANA_FIN && minuto == 0);
-            
+            boolean enHorarioSabado = (hora >= AppConstants.HORARIO_MANANA_INICIO
+                    && hora < AppConstants.HORARIO_MANANA_FIN) ||
+                    (hora == AppConstants.HORARIO_MANANA_FIN && minuto == 0);
+
             if (!enHorarioSabado) {
                 throw new BusinessException(
-                    "Los sábados el horario de atención es de 8:00 AM a 12:00 PM"
-                );
+                        "Los sábados el horario de atención es de 8:00 AM a 12:00 PM");
             }
             return;
         }
-        
+
         // Para lunes a viernes: horario de mañana (8:00-12:00) y tarde (14:00-18:00)
-        boolean enHorarioManana = 
-            (hora >= AppConstants.HORARIO_MANANA_INICIO && hora < AppConstants.HORARIO_MANANA_FIN) ||
-            (hora == AppConstants.HORARIO_MANANA_FIN && minuto == 0);
-        
-        boolean enHorarioTarde = 
-            (hora >= AppConstants.HORARIO_TARDE_INICIO && hora < AppConstants.HORARIO_TARDE_FIN) ||
-            (hora == AppConstants.HORARIO_TARDE_FIN && minuto == 0);
-        
+        boolean enHorarioManana = (hora >= AppConstants.HORARIO_MANANA_INICIO && hora < AppConstants.HORARIO_MANANA_FIN)
+                ||
+                (hora == AppConstants.HORARIO_MANANA_FIN && minuto == 0);
+
+        boolean enHorarioTarde = (hora >= AppConstants.HORARIO_TARDE_INICIO && hora < AppConstants.HORARIO_TARDE_FIN) ||
+                (hora == AppConstants.HORARIO_TARDE_FIN && minuto == 0);
+
         if (!enHorarioManana && !enHorarioTarde) {
             throw new BusinessException(
-                "La cita debe estar dentro del horario de atención: " +
-                "Lunes a Viernes de 8:00 AM a 12:00 PM y de 2:00 PM a 6:00 PM, " +
-                "Sábados de 8:00 AM a 12:00 PM"
-            );
+                    "La cita debe estar dentro del horario de atención: " +
+                            "Lunes a Viernes de 8:00 AM a 12:00 PM y de 2:00 PM a 6:00 PM, " +
+                            "Sábados de 8:00 AM a 12:00 PM");
         }
     }
 
@@ -390,10 +384,10 @@ public class SolicitudCitaService {
      */
     private SolicitudCitaResponse mapToResponse(SolicitudCita solicitud) {
         return SolicitudCitaResponse.builder()
-                .idSolicitud(solicitud.getIdSolicitud())
-                .clienteId(solicitud.getCliente().getIdPersona())
+                .idSolicitud(Objects.requireNonNull(solicitud.getIdSolicitud()))
+                .clienteId(Objects.requireNonNull(solicitud.getCliente().getIdPersona()))
                 .nombreCliente(solicitud.getCliente().getNombre() + " " + solicitud.getCliente().getApellido())
-                .pacienteId(solicitud.getPaciente().getIdPaciente())
+                .pacienteId(Objects.requireNonNull(solicitud.getPaciente().getIdPaciente()))
                 .nombrePaciente(solicitud.getPaciente().getNombre())
                 .fechaSolicitada(solicitud.getFechaSolicitada())
                 .horaSolicitada(solicitud.getHoraSolicitada())

@@ -25,8 +25,10 @@ import java.util.stream.Collectors;
 /**
  * Servicio para la gestión de reportes (Facade pattern).
  *
- * Coordina la generación de reportes combinando cálculos estadísticos y persistencia.
+ * Coordina la generación de reportes combinando cálculos estadísticos y
+ * persistencia.
  */
+@SuppressWarnings("null")
 @Service
 public class ReporteService {
 
@@ -36,8 +38,8 @@ public class ReporteService {
 
     @Autowired
     public ReporteService(ReporteRepository reporteRepository,
-                          EstadisticaService estadisticaService,
-                          ObjectMapper objectMapper) {
+            EstadisticaService estadisticaService,
+            ObjectMapper objectMapper) {
         this.reporteRepository = reporteRepository;
         this.estadisticaService = estadisticaService;
         this.objectMapper = objectMapper;
@@ -57,8 +59,7 @@ public class ReporteService {
 
         List<Estadistica> estadisticas = estadisticaService.calcularEstadisticasParaReporte(
                 request.getTipo(),
-                request.getParametros() != null ? request.getParametros() : Collections.emptyMap()
-        );
+                request.getParametros() != null ? request.getParametros() : Collections.emptyMap());
 
         Reporte guardado = reporteRepository.save(reporte);
         return mapToResponse(guardado, estadisticas);
@@ -74,8 +75,7 @@ public class ReporteService {
 
         List<Estadistica> estadisticas = estadisticaService.calcularEstadisticasParaReporte(
                 reporte.getTipo(),
-                toMap(reporte.getParametros())
-        );
+                toMap(reporte.getParametros()));
 
         StringBuilder contenido = new StringBuilder();
         contenido.append("CLINICA VETERINARIA HUMBOLDT\n");
@@ -114,8 +114,7 @@ public class ReporteService {
 
         List<Estadistica> estadisticas = estadisticaService.calcularEstadisticasParaReporte(
                 reporte.getTipo(),
-                toMap(reporte.getParametros())
-        );
+                toMap(reporte.getParametros()));
 
         StringJoiner csv = new StringJoiner("\n");
         csv.add("reporte,tipo,fecha_generacion,generado_por,estadistica,valor,periodo_inicio,periodo_fin");
@@ -187,10 +186,10 @@ public class ReporteService {
             return Collections.emptyMap();
         }
         try {
-            return objectMapper.readValue(parametrosJson, new TypeReference<Map<String, Object>>() {});
+            return objectMapper.readValue(parametrosJson, new TypeReference<Map<String, Object>>() {
+            });
         } catch (JsonProcessingException e) {
             return Collections.emptyMap();
         }
     }
 }
-

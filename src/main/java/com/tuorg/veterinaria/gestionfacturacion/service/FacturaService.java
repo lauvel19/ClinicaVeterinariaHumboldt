@@ -25,12 +25,14 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
 /**
  * Servicio para la gestión de facturas.
  *
  * Implementa el patrón Factory/Builder para encapsular la lógica de creación
  * y expone DTOs para separar la capa de exposición de las entidades JPA.
  */
+@SuppressWarnings("null")
 @Service
 public class FacturaService {
 
@@ -40,15 +42,16 @@ public class FacturaService {
 
     @Autowired
     public FacturaService(FacturaRepository facturaRepository,
-                          UsuarioRepository usuarioRepository,
-                          ObjectMapper objectMapper) {
+            UsuarioRepository usuarioRepository,
+            ObjectMapper objectMapper) {
         this.facturaRepository = facturaRepository;
         this.usuarioRepository = usuarioRepository;
         this.objectMapper = objectMapper;
     }
 
     /**
-     * Crea una nueva factura con validaciones de negocio y generación de número único.
+     * Crea una nueva factura con validaciones de negocio y generación de número
+     * único.
      * 
      * Flujo de creación de factura:
      * 1. Verifica existencia del cliente por ID
@@ -61,10 +64,11 @@ public class FacturaService {
      * 
      * Nota: El número de factura incluye timestamp para evitar colisiones
      * 
-     * @param request DTO con clienteId, total, formaPago, contenido (items, detalles)
+     * @param request DTO con clienteId, total, formaPago, contenido (items,
+     *                detalles)
      * @return FacturaResponse con datos de la factura creada
      * @throws ResourceNotFoundException si cliente no existe
-     * @throws BusinessException si no es cliente o total negativo
+     * @throws BusinessException         si no es cliente o total negativo
      */
     @Transactional
     public FacturaResponse crear(FacturaRequest request) {
@@ -87,16 +91,18 @@ public class FacturaService {
         factura.setCliente(cliente);
         factura.setTotal(request.getTotal());
         factura.setFormaPago(request.getFormaPago()); // Método de pago (efectivo, tarjeta, cheque, etc)
-        
+
         // PASO 6: Serializar contenido (items de factura) a JSON
-        // Esto permite almacenar datos flexibles (no predefinidos) sin requerer otra tabla
+        // Esto permite almacenar datos flexibles (no predefinidos) sin requerer otra
+        // tabla
         factura.setContenido(asJsonString(request.getContenido()));
 
         // PASO 4: Generar número único de factura
         // Formato: FACT-yyyyMMdd-secuencia (ej: FACT-20251201-0352)
         String numeroFactura = generarNumeroFactura();
-        
-        // Verificar que el número no exista (muy raro pero posible con números aleatorios)
+
+        // Verificar que el número no exista (muy raro pero posible con números
+        // aleatorios)
         while (facturaRepository.findByNumero(numeroFactura).isPresent()) {
             numeroFactura = generarNumeroFactura();
         }
@@ -108,7 +114,7 @@ public class FacturaService {
 
         // PASO 7: Persistir en base de datos
         Factura guardada = facturaRepository.save(factura);
-        
+
         return mapToResponse(guardada);
     }
 
@@ -159,29 +165,30 @@ public class FacturaService {
      * La anulación es irreversible y permite auditoría del cambio.
      * 
      * ⏹️ FLUJO DE ANULACIÓN (4 PASOS):
-     * 1️⃣  Buscar factura por ID → Validar existencia en BD
-     * 2️⃣  Verificar estado actual:
-     *     ❌ Si ya está ANULADA → Lanzar excepción (evitar re-anulación)
-     *     ❌ Si está PAGADA → Lanzar excepción (no se puede anular pagada por auditoria)
-     * 3️⃣  Cambiar estado: PENDIENTE/PAGADA → ANULADA
-     * 4️⃣  Guardar cambios en BD con auditoría automática
+     * 1️⃣ Buscar factura por ID → Validar existencia en BD
+     * 2️⃣ Verificar estado actual:
+     * ❌ Si ya está ANULADA → Lanzar excepción (evitar re-anulación)
+     * ❌ Si está PAGADA → Lanzar excepción (no se puede anular pagada por auditoria)
+     * 3️⃣ Cambiar estado: PENDIENTE/PAGADA → ANULADA
+     * 4️⃣ Guardar cambios en BD con auditoría automática
      * 
      * 🔐 RESTRICCIONES DE NEGOCIO:
-     *    • Solo se pueden anular facturas no pagadas
-     *    • Una factura no puede anularse dos veces
-     *    • La anulación no elimina registros (integridad de auditoría)
-     *    • El cambio de estado se registra automáticamente por @EntityListeners
+     * • Solo se pueden anular facturas no pagadas
+     * • Una factura no puede anularse dos veces
+     * • La anulación no elimina registros (integridad de auditoría)
+     * • El cambio de estado se registra automáticamente por @EntityListeners
      * 
      * @param facturaId ID único de la factura a anular
      * @return FacturaResponse con los datos actualizados (estado = ANULADA)
      * @throws ResourceNotFoundException si la factura no existe en BD
-     * @throws BusinessException si:
-     *         - La factura ya está anulada (re-anulación)
-     *         - La factura está pagada (restricción de auditoría)
+     * @throws BusinessException         si:
+     *                                   - La factura ya está anulada (re-anulación)
+     *                                   - La factura está pagada (restricción de
+     *                                   auditoría)
      * 
      * @example
-     *   FacturaResponse anulada = facturaService.anular(123L);
-     *   // Resultado: estado = "ANULADA", fechaAnulacion = ahora()
+     *          FacturaResponse anulada = facturaService.anular(123L);
+     *          // Resultado: estado = "ANULADA", fechaAnulacion = ahora()
      */
     public FacturaResponse anular(Long facturaId) {
         // ✓ PASO 1: Buscar factura en BD con validación de existencia
@@ -193,14 +200,15 @@ public class FacturaService {
             throw new BusinessException("La factura ya está anulada");
         }
 
-        // ❌ PASO 2B: Validación 2 - Verificar que NO esté pagada (restricción de auditoría)
+        // ❌ PASO 2B: Validación 2 - Verificar que NO esté pagada (restricción de
+        // auditoría)
         if (AppConstants.ESTADO_FACTURA_PAGADA.equals(factura.getEstado())) {
             throw new BusinessException("No se puede anular una factura ya pagada");
         }
 
         // ✓ PASO 3: Cambiar estado a ANULADA
         factura.setEstado(AppConstants.ESTADO_FACTURA_ANULADA);
-        
+
         // ✓ PASO 4: Guardar en BD (actualización registrada por auditoría automática)
         Factura anulada = facturaRepository.save(factura);
         return mapToResponse(anulada);
@@ -215,44 +223,48 @@ public class FacturaService {
      * - La forma de pago sea válida
      * 
      * 💰 FLUJO DE PAGO (5 PASOS):
-     * 1️⃣  Buscar factura por ID → Validar existencia en BD
-     * 2️⃣  Verificar estado actual:
-     *     ❌ Si NO está PENDIENTE → Lanzar excepción (ya fue pagada/anulada/otra)
-     * 3️⃣  Validar monto pagado:
-     *     ❌ Si no coincide con total → Lanzar excepción con detalles
-     * 4️⃣  Registrar datos de pago:
-     *     • Estado: PENDIENTE → PAGADA
-     *     • Forma de pago: transferencia, efectivo, tarjeta, cheque
-     *     • Fecha de pago: NOW (timestamp exacto de procesamiento)
-     * 5️⃣  Guardar en BD con auditoría automática
+     * 1️⃣ Buscar factura por ID → Validar existencia en BD
+     * 2️⃣ Verificar estado actual:
+     * ❌ Si NO está PENDIENTE → Lanzar excepción (ya fue pagada/anulada/otra)
+     * 3️⃣ Validar monto pagado:
+     * ❌ Si no coincide con total → Lanzar excepción con detalles
+     * 4️⃣ Registrar datos de pago:
+     * • Estado: PENDIENTE → PAGADA
+     * • Forma de pago: transferencia, efectivo, tarjeta, cheque
+     * • Fecha de pago: NOW (timestamp exacto de procesamiento)
+     * 5️⃣ Guardar en BD con auditoría automática
      * 
      * 💵 VALIDACIONES DE MONTO:
-     *    • BigDecimal.compareTo(0) para comparación exacta de dinero
-     *    • No se permiten pagos parciales (monto != total)
-     *    • No se permiten pagos excesivos (monto > total)
+     * • BigDecimal.compareTo(0) para comparación exacta de dinero
+     * • No se permiten pagos parciales (monto != total)
+     * • No se permiten pagos excesivos (monto > total)
      * 
      * 🔐 RESTRICCIONES DE NEGOCIO:
-     *    • Solo facturas en estado PENDIENTE pueden ser pagadas
-     *    • El monto debe ser exacto (no parcial, no excesivo)
-     *    • La transacción es atómica (@Transactional)
-     *    • El cambio de estado se registra en auditoría
+     * • Solo facturas en estado PENDIENTE pueden ser pagadas
+     * • El monto debe ser exacto (no parcial, no excesivo)
+     * • La transacción es atómica (@Transactional)
+     * • El cambio de estado se registra en auditoría
      * 
      * @param facturaId ID único de la factura a pagar
-     * @param request FacturaPagoRequest con:
-     *        - montoPagado: BigDecimal (monto exacto pagado)
-     *        - formaPago: String (transferencia|efectivo|tarjeta|cheque)
-     * @return FacturaResponse con los datos actualizados (estado = PAGADA, fechaPago = ahora)
+     * @param request   FacturaPagoRequest con:
+     *                  - montoPagado: BigDecimal (monto exacto pagado)
+     *                  - formaPago: String (transferencia|efectivo|tarjeta|cheque)
+     * @return FacturaResponse con los datos actualizados (estado = PAGADA,
+     *         fechaPago = ahora)
      * @throws ResourceNotFoundException si la factura no existe en BD
-     * @throws BusinessException si:
-     *         - La factura NO está en estado PENDIENTE (ya pagada/anulada)
-     *         - El montoPagado != total de la factura (validación de exactitud)
+     * @throws BusinessException         si:
+     *                                   - La factura NO está en estado PENDIENTE
+     *                                   (ya pagada/anulada)
+     *                                   - El montoPagado != total de la factura
+     *                                   (validación de exactitud)
      * 
      * @example
-     *   FacturaPagoRequest pago = new FacturaPagoRequest();
-     *   pago.setMontoPagado(new BigDecimal("1500.00"));
-     *   pago.setFormaPago("transferencia");
-     *   FacturaResponse pagada = facturaService.registrarPago(123L, pago);
-     *   // Resultado: estado = "PAGADA", fechaPago = 2024-01-15 14:30:45, formaPago = "transferencia"
+     *          FacturaPagoRequest pago = new FacturaPagoRequest();
+     *          pago.setMontoPagado(new BigDecimal("1500.00"));
+     *          pago.setFormaPago("transferencia");
+     *          FacturaResponse pagada = facturaService.registrarPago(123L, pago);
+     *          // Resultado: estado = "PAGADA", fechaPago = 2024-01-15 14:30:45,
+     *          formaPago = "transferencia"
      */
     @Transactional
     public FacturaResponse registrarPago(Long facturaId, FacturaPagoRequest request) {
@@ -267,22 +279,22 @@ public class FacturaService {
 
         // ❌ PASO 3: Validación de monto - Debe ser exacto (no parcial, no excesivo)
         // Nota: BigDecimal.compareTo(0) retorna:
-        //   0  = montos son iguales
-        //  -1  = montoPagado < total (pago insuficiente)
-        //   1  = montoPagado > total (pago excesivo)
+        // 0 = montos son iguales
+        // -1 = montoPagado < total (pago insuficiente)
+        // 1 = montoPagado > total (pago excesivo)
         if (request.getMontoPagado().compareTo(factura.getTotal()) != 0) {
             throw new BusinessException(
-                String.format("El monto pagado (%s) no coincide con el total de la factura (%s)",
-                    request.getMontoPagado(), factura.getTotal())
-            );
+                    String.format("El monto pagado (%s) no coincide con el total de la factura (%s)",
+                            request.getMontoPagado(), factura.getTotal()));
         }
 
         // ✓ PASO 4: Registrar datos de pago
-        factura.setEstado(AppConstants.ESTADO_FACTURA_PAGADA);    // Cambiar estado a PAGADA
-        factura.setFormaPago(request.getFormaPago());              // Registrar forma de pago (transferencia, efectivo, etc)
-        factura.setFechaPago(LocalDateTime.now());                  // Timestamp exacto del pago
+        factura.setEstado(AppConstants.ESTADO_FACTURA_PAGADA); // Cambiar estado a PAGADA
+        factura.setFormaPago(request.getFormaPago()); // Registrar forma de pago (transferencia, efectivo, etc)
+        factura.setFechaPago(LocalDateTime.now()); // Timestamp exacto del pago
 
-        // ✓ PASO 5: Guardar en BD con auditoría automática (@Transactional garantiza atomicidad)
+        // ✓ PASO 5: Guardar en BD con auditoría automática (@Transactional garantiza
+        // atomicidad)
         Factura pagada = facturaRepository.save(factura);
         return mapToResponse(pagada);
     }
@@ -323,10 +335,10 @@ public class FacturaService {
             return Collections.emptyMap();
         }
         try {
-            return objectMapper.readValue(contenido, new TypeReference<Map<String, Object>>() {});
+            return objectMapper.readValue(contenido, new TypeReference<Map<String, Object>>() {
+            });
         } catch (JsonProcessingException e) {
             return Collections.emptyMap();
         }
     }
 }
-

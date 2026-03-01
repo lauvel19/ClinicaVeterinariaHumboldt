@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+
 /**
  * Servicio para la gestión de movimientos de inventario.
  * 
@@ -30,6 +31,7 @@ import java.util.List;
  * @author Equipo de Desarrollo
  * @version 1.0.0
  */
+@SuppressWarnings("null")
 @Service
 public class MovimientoInventarioService {
 
@@ -67,10 +69,10 @@ public class MovimientoInventarioService {
      * Constructor con inyección de dependencias.
      * 
      * @param movimientoInventarioRepository Repositorio de movimientos
-     * @param productoRepository Repositorio de productos
-     * @param proveedorRepository Repositorio de proveedores
-     * @param usuarioRepository Repositorio de usuarios
-     * @param productoService Servicio de productos
+     * @param productoRepository             Repositorio de productos
+     * @param proveedorRepository            Repositorio de proveedores
+     * @param usuarioRepository              Repositorio de usuarios
+     * @param productoService                Servicio de productos
      */
     @Autowired
     public MovimientoInventarioService(
@@ -94,11 +96,11 @@ public class MovimientoInventarioService {
      * Esta operación es transaccional: registra el movimiento y
      * actualiza el stock del producto.
      * 
-     * @param productoId ID del producto
+     * @param productoId  ID del producto
      * @param proveedorId ID del proveedor (opcional)
-     * @param cantidad Cantidad de entrada
-     * @param referencia Referencia del movimiento
-     * @param usuarioId ID del usuario que realiza el movimiento
+     * @param cantidad    Cantidad de entrada
+     * @param referencia  Referencia del movimiento
+     * @param usuarioId   ID del usuario que realiza el movimiento
      * @return MovimientoInventario creado
      */
     @Transactional
@@ -140,9 +142,9 @@ public class MovimientoInventarioService {
      * registra el movimiento y actualiza el stock del producto.
      * 
      * @param productoId ID del producto
-     * @param cantidad Cantidad de salida
+     * @param cantidad   Cantidad de salida
      * @param referencia Referencia del movimiento
-     * @param usuarioId ID del usuario que realiza el movimiento
+     * @param usuarioId  ID del usuario que realiza el movimiento
      * @return MovimientoInventario creado
      */
     @Transactional
@@ -197,7 +199,7 @@ public class MovimientoInventarioService {
      * Obtiene movimientos en un rango de fechas.
      * 
      * @param fechaInicio Fecha de inicio
-     * @param fechaFin Fecha de fin
+     * @param fechaFin    Fecha de fin
      * @return Lista de movimientos en el rango especificado
      */
     @Transactional(readOnly = true)
@@ -216,7 +218,7 @@ public class MovimientoInventarioService {
      * que no hayan sido revertidos previamente.
      * 
      * @param movimientoId ID del movimiento a revertir
-     * @param usuarioId ID del usuario que realiza la reversión
+     * @param usuarioId    ID del usuario que realiza la reversión
      * @return MovimientoInventario de reversión creado
      */
     @Transactional
@@ -235,7 +237,7 @@ public class MovimientoInventarioService {
         // Crear movimiento inverso
         MovimientoInventario movimientoReversion = new MovimientoInventario();
         movimientoReversion.setProducto(movimientoOriginal.getProducto());
-        
+
         // Invertir el tipo de movimiento
         if (AppConstants.TIPO_MOVIMIENTO_ENTRADA.equals(movimientoOriginal.getTipoMovimiento())) {
             movimientoReversion.setTipoMovimiento(AppConstants.TIPO_MOVIMIENTO_SALIDA);
@@ -244,7 +246,7 @@ public class MovimientoInventarioService {
         } else {
             throw new BusinessException("No se puede revertir un movimiento de tipo AJUSTE");
         }
-        
+
         // Mantener la misma cantidad (pero con signo inverso implícito en el tipo)
         movimientoReversion.setCantidad(movimientoOriginal.getCantidad());
         movimientoReversion.setFecha(LocalDateTime.now());
@@ -257,7 +259,7 @@ public class MovimientoInventarioService {
         }
 
         MovimientoInventario guardado = movimientoInventarioRepository.save(movimientoReversion);
-        
+
         // Actualizar stock (invertir el cambio original)
         Integer cantidadAjuste;
         if (AppConstants.TIPO_MOVIMIENTO_ENTRADA.equals(movimientoOriginal.getTipoMovimiento())) {
@@ -267,11 +269,11 @@ public class MovimientoInventarioService {
             // Si era salida, ahora es entrada (sumar)
             cantidadAjuste = movimientoOriginal.getCantidad();
         }
-        
+
         Producto actualizado = productoService.actualizarStock(
-                movimientoOriginal.getProducto().getIdProducto(), 
+                movimientoOriginal.getProducto().getIdProducto(),
                 cantidadAjuste);
-        
+
         return mapToResponse(guardado, actualizado.getStock());
     }
 
@@ -279,15 +281,13 @@ public class MovimientoInventarioService {
         MovimientoInventarioResponse.ProductoSummary productoSummary = new MovimientoInventarioResponse.ProductoSummary(
                 movimiento.getProducto().getIdProducto(),
                 movimiento.getProducto().getSku(),
-                movimiento.getProducto().getNombre()
-        );
+                movimiento.getProducto().getNombre());
 
         MovimientoInventarioResponse.ProveedorSummary proveedorSummary = null;
         if (movimiento.getProveedor() != null) {
             proveedorSummary = new MovimientoInventarioResponse.ProveedorSummary(
                     movimiento.getProveedor().getIdProveedor(),
-                    movimiento.getProveedor().getNombre()
-            );
+                    movimiento.getProveedor().getNombre());
         }
 
         MovimientoInventarioResponse.UsuarioSummary usuarioSummary = null;
@@ -297,8 +297,7 @@ public class MovimientoInventarioService {
                     usuario.getIdUsuario(),
                     usuario.getUsername(),
                     usuario.getNombre(),
-                    usuario.getApellido()
-            );
+                    usuario.getApellido());
         }
 
         return new MovimientoInventarioResponse(
@@ -310,9 +309,6 @@ public class MovimientoInventarioService {
                 productoSummary,
                 proveedorSummary,
                 usuarioSummary,
-                stockResultante
-        );
+                stockResultante);
     }
 }
-
-

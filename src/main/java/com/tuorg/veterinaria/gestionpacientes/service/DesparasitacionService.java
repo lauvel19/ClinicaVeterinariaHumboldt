@@ -13,10 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+
 /**
  * Servicio para la gestión de desparasitaciones.
  * 
- * Este servicio proporciona métodos para registrar y consultar desparasitaciones.
+ * Este servicio proporciona métodos para registrar y consultar
+ * desparasitaciones.
  * 
  * @author Equipo de Desarrollo
  * @version 1.0.0
@@ -38,11 +41,11 @@ public class DesparasitacionService {
      * Constructor con inyección de dependencias.
      * 
      * @param desparasitacionRepository Repositorio de desparasitaciones
-     * @param pacienteRepository Repositorio de pacientes
+     * @param pacienteRepository        Repositorio de pacientes
      */
     @Autowired
     public DesparasitacionService(DesparasitacionRepository desparasitacionRepository,
-                                  PacienteRepository pacienteRepository) {
+            PacienteRepository pacienteRepository) {
         this.desparasitacionRepository = desparasitacionRepository;
         this.pacienteRepository = pacienteRepository;
     }
@@ -55,7 +58,7 @@ public class DesparasitacionService {
      */
     @Transactional
     public DesparasitacionResponse registrar(DesparasitacionRequest request) {
-        Paciente paciente = pacienteRepository.findById(request.getPacienteId())
+        Paciente paciente = pacienteRepository.findById(Objects.requireNonNull(request.getPacienteId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente", "id", request.getPacienteId()));
 
         Desparasitacion desparasitacion = new Desparasitacion();
@@ -64,7 +67,7 @@ public class DesparasitacionService {
         desparasitacion.setFechaAplicacion(request.getFechaAplicacion());
         desparasitacion.setProximaAplicacion(request.getProximaAplicacion());
 
-        Desparasitacion guardada = desparasitacionRepository.save(desparasitacion);
+        Desparasitacion guardada = desparasitacionRepository.save(Objects.requireNonNull(desparasitacion));
         return mapToResponse(guardada);
     }
 
@@ -76,7 +79,7 @@ public class DesparasitacionService {
      */
     @Transactional(readOnly = true)
     public List<DesparasitacionResponse> obtenerPorPaciente(Long pacienteId) {
-        return desparasitacionRepository.findByPacienteIdPaciente(pacienteId)
+        return desparasitacionRepository.findByPacienteIdPaciente(Objects.requireNonNull(pacienteId))
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -92,7 +95,7 @@ public class DesparasitacionService {
     public List<DesparasitacionResponse> obtenerDesparasitacionesPendientes(int dias) {
         LocalDate fechaInicio = LocalDate.now();
         LocalDate fechaFin = fechaInicio.plusDays(dias);
-        
+
         return desparasitacionRepository.findByProximaAplicacionBetween(fechaInicio, fechaFin)
                 .stream()
                 .map(this::mapToResponse)
@@ -115,9 +118,9 @@ public class DesparasitacionService {
     private DesparasitacionResponse mapToResponse(Desparasitacion desparasitacion) {
         Paciente paciente = desparasitacion.getPaciente();
         return DesparasitacionResponse.builder()
-                .idDesparasitacion(desparasitacion.getIdDesparasitacion())
+                .idDesparasitacion(Objects.requireNonNull(desparasitacion.getIdDesparasitacion()))
                 .paciente(DesparasitacionResponse.PacienteSummary.builder()
-                        .id(paciente.getIdPaciente())
+                        .id(Objects.requireNonNull(paciente.getIdPaciente()))
                         .nombre(paciente.getNombre())
                         .build())
                 .productoUsado(desparasitacion.getProductoUsado())
@@ -126,5 +129,3 @@ public class DesparasitacionService {
                 .build();
     }
 }
-
-

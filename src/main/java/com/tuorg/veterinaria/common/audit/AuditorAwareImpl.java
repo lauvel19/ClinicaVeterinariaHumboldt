@@ -6,6 +6,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
+import java.util.Objects;
 
 /**
  * Implementación de AuditorAware para capturar el usuario actual.
@@ -22,18 +23,19 @@ public class AuditorAwareImpl implements AuditorAware<String> {
     /**
      * Obtiene el usuario actual del contexto de seguridad.
      * 
-     * @return Optional con el username del usuario autenticado, 
+     * @return Optional con el username del usuario autenticado,
      *         o "system" si no hay usuario autenticado
      */
     @Override
+    @org.springframework.lang.NonNull
     public Optional<String> getCurrentAuditor() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        
-        if (authentication == null || !authentication.isAuthenticated() 
+
+        if (authentication == null || !authentication.isAuthenticated()
                 || authentication.getPrincipal().equals("anonymousUser")) {
-            return Optional.of("system");
+            return Objects.requireNonNull(Optional.of("system"));
         }
-        
-        return Optional.of(authentication.getName());
+
+        return Objects.requireNonNull(Optional.of(authentication.getName()));
     }
 }

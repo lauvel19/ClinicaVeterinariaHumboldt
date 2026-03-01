@@ -36,6 +36,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Pruebas unitarias de FacturaService")
+@SuppressWarnings("null")
 class FacturaServiceTest {
 
     @Mock
@@ -67,7 +68,7 @@ class FacturaServiceTest {
         facturaRequest.setClienteId(1L);
         facturaRequest.setTotal(BigDecimal.valueOf(150.00));
         facturaRequest.setFormaPago("Efectivo");
-        
+
         Map<String, Object> contenido = new HashMap<>();
         contenido.put("servicios", "Consulta veterinaria");
         contenido.put("subtotal", 150.00);
@@ -161,4 +162,3 @@ class FacturaServiceTest {
         verify(facturaRepository, never()).save(any());
     }
 }
-

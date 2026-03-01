@@ -35,6 +35,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Pruebas unitarias de VacunacionService")
+@SuppressWarnings("null")
 class VacunacionServiceTest {
 
     @Mock
@@ -160,4 +161,3 @@ class VacunacionServiceTest {
         verify(vacunacionRepository, never()).save(any());
     }
 }
-

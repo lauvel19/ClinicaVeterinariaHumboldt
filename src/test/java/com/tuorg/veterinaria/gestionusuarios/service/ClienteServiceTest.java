@@ -29,10 +29,12 @@ import static org.mockito.Mockito.*;
 /**
  * Pruebas unitarias para ClienteService.
  * 
- * Verifica que asigna rol CLIENTE, codifica contraseña y rechaza datos inválidos.
+ * Verifica que asigna rol CLIENTE, codifica contraseña y rechaza datos
+ * inválidos.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Pruebas unitarias de ClienteService")
+@SuppressWarnings("null")
 class ClienteServiceTest {
 
     @Mock
@@ -175,4 +177,3 @@ class ClienteServiceTest {
         verify(clienteRepository, never()).save(any());
     }
 }
-

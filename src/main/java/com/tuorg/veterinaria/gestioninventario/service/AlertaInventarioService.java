@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Servicio para la gestión de alertas de inventario.
@@ -38,11 +39,11 @@ public class AlertaInventarioService {
      * Constructor con inyección de dependencias.
      * 
      * @param alertaInventarioRepository Repositorio de alertas
-     * @param productoRepository Repositorio de productos
+     * @param productoRepository         Repositorio de productos
      */
     @Autowired
     public AlertaInventarioService(AlertaInventarioRepository alertaInventarioRepository,
-                                  ProductoRepository productoRepository) {
+            ProductoRepository productoRepository) {
         this.alertaInventarioRepository = alertaInventarioRepository;
         this.productoRepository = productoRepository;
     }
@@ -55,7 +56,7 @@ public class AlertaInventarioService {
      */
     @Transactional
     public AlertaInventario generarAlerta(Long productoId) {
-        Producto producto = productoRepository.findById(productoId)
+        Producto producto = productoRepository.findById(Objects.requireNonNull(productoId))
                 .orElseThrow(() -> new ResourceNotFoundException("Producto", "id", productoId));
 
         AlertaInventario alerta = new AlertaInventario();
@@ -65,7 +66,7 @@ public class AlertaInventarioService {
         alerta.setMensaje(String.format("Stock bajo para producto %s (SKU: %s). Stock actual: %d",
                 producto.getNombre(), producto.getSku(), producto.getStock()));
 
-        return alertaInventarioRepository.save(alerta);
+        return Objects.requireNonNull(alertaInventarioRepository.save(Objects.requireNonNull(alerta)));
     }
 
     /**
@@ -76,7 +77,7 @@ public class AlertaInventarioService {
      */
     @Transactional(readOnly = true)
     public List<AlertaInventario> obtenerPorProducto(Long productoId) {
-        return alertaInventarioRepository.findByProductoId(productoId);
+        return alertaInventarioRepository.findByProductoId(Objects.requireNonNull(productoId));
     }
 
     /**
@@ -89,4 +90,3 @@ public class AlertaInventarioService {
         return alertaInventarioRepository.findAll();
     }
 }
-

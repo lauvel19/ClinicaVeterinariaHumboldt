@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.Base64;
 import com.tuorg.veterinaria.gestionusuarios.dto.LoginResponse;
 import com.tuorg.veterinaria.common.util.ValidationUtil;
@@ -65,19 +66,19 @@ public class AuthService {
     /**
      * Constructor con inyección de dependencias.
      * 
-     * @param usuarioRepository Repositorio de usuarios
+     * @param usuarioRepository     Repositorio de usuarios
      * @param authenticationManager Gestor de autenticación
-     * @param tokenProvider Proveedor de tokens JWT
-     * @param passwordEncoder Codificador de contraseñas
-     * @param userDetailsService Servicio de detalles de usuario
+     * @param tokenProvider         Proveedor de tokens JWT
+     * @param passwordEncoder       Codificador de contraseñas
+     * @param userDetailsService    Servicio de detalles de usuario
      */
     @Autowired
     public AuthService(UsuarioRepository usuarioRepository,
-                    AuthenticationManager authenticationManager,
-                    JwtTokenProvider tokenProvider,
-                    PasswordEncoder passwordEncoder,
-                    CustomUserDetailsService userDetailsService,
-                    RolRepository rolRepository) {
+            AuthenticationManager authenticationManager,
+            JwtTokenProvider tokenProvider,
+            PasswordEncoder passwordEncoder,
+            CustomUserDetailsService userDetailsService,
+            RolRepository rolRepository) {
         this.usuarioRepository = usuarioRepository;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
@@ -100,30 +101,33 @@ public class AuthService {
      * 
      * @param username Nombre único del usuario (campo de autenticación)
      * @param password Contraseña en texto plano (será validada contra hash en BD)
-     * @return LoginResponse con token JWT, tipo bearer y datos del usuario autenticado
-     * @throws BusinessException si usuario no existe, está inactivo, o credenciales son inválidas
+     * @return LoginResponse con token JWT, tipo bearer y datos del usuario
+     *         autenticado
+     * @throws BusinessException si usuario no existe, está inactivo, o credenciales
+     *                           son inválidas
      */
     @Transactional
     public LoginResponse login(String username, String password) {
         try {
             logger.info("🔐 Iniciando login para usuario: {}", username);
-            
+
             // PASO 1: Verificar que el usuario existe antes de intentar autenticar
             // Esto evita intentos de validación de contraseña innecesarios
-            Usuario usuario = usuarioRepository.findByUsername(username)
+            Usuario usuario = usuarioRepository.findByUsername(Objects.requireNonNull(username))
                     .orElseThrow(() -> new BusinessException("Usuario no encontrado: " + username));
-            
+
             logger.info("✓ Usuario encontrado: {}", usuario.getUsername());
-            
+
             // PASO 2: Validar que la cuenta esté activa
             // Previene acceso con usuarios desactivados
             if (!usuario.getActivo()) {
                 logger.warn("⚠️ Intento de login con usuario inactivo: {}", username);
                 throw new BusinessException("Usuario inactivo: " + username);
             }
-            
+
             // PASO 3: Obtener el nombre del rol de forma segura
-            // Se usa try-catch porque la relación puede no estar inicializada (lazy loading)
+            // Se usa try-catch porque la relación puede no estar inicializada (lazy
+            // loading)
             String nombreRol = "SIN_ROL";
             try {
                 Rol rol = usuario.getRol();
@@ -133,9 +137,9 @@ public class AuthService {
             } catch (Exception e) {
                 logger.warn("⚠️ No se pudo obtener el nombre del rol para usuario {}: {}", username, e.getMessage());
             }
-            
+
             logger.info("✓ Rol obtenido: {}", nombreRol);
-            
+
             // PASO 4: Autenticar usuario contra Spring Security
             // Si falla, lanza AuthenticationException (contraseña incorrecta)
             authenticationManager.authenticate(
@@ -144,17 +148,18 @@ public class AuthService {
             logger.info("✓ Autenticación contra Spring Security exitosa para usuario: {}", username);
 
             // PASO 5: Obtener detalles del usuario autenticado
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(Objects.requireNonNull(username));
 
             // PASO 6: Generar token JWT con claims personalizados
-            // El token incluye username y autoridades. Expiración configurada en JwtTokenProvider
+            // El token incluye username y autoridades. Expiración configurada en
+            // JwtTokenProvider
             String token = tokenProvider.generateToken(userDetails);
-            
+
             logger.info("✓ Token JWT generado para usuario: {}", username);
 
             // PASO 7: Registrar último acceso del usuario para auditoría
             usuario.setUltimoAcceso(LocalDateTime.now());
-            usuarioRepository.save(usuario);
+            usuarioRepository.save(Objects.requireNonNull(usuario));
             usuarioRepository.flush(); // Asegurar que el cambio se persista inmediatamente
 
             // Obtener ID de forma segura (intentar idUsuario, sino idPersona)
@@ -165,16 +170,15 @@ public class AuthService {
 
             // Construir respuesta con información del usuario (sin contraseña)
             LoginResponse.UsuarioLoginResponse usuarioResponse = new LoginResponse.UsuarioLoginResponse(
-                    idUsuario,
+                    Objects.requireNonNull(idUsuario),
                     usuario.getNombre() != null ? usuario.getNombre() : "",
                     usuario.getApellido() != null ? usuario.getApellido() : "",
                     usuario.getCorreo() != null ? usuario.getCorreo() : "",
-                    nombreRol
-            );
+                    nombreRol);
 
             logger.info("✅ Login exitoso para usuario: {} con rol: {}", username, nombreRol);
             return new LoginResponse(token, "Bearer", usuarioResponse);
-            
+
         } catch (org.springframework.security.core.AuthenticationException e) {
             // Captura excepciones de Spring Security (ej: contraseña incorrecta)
             logger.error("❌ Error de autenticación para usuario {}: {}", username, e.getMessage());
@@ -191,16 +195,19 @@ public class AuthService {
      * 
      * Flujo de registro:
      * 1. Valida que username no exista (unicidad requerida)
-     * 2. Valida que email no exista (unicidad requerida para recuperación de contraseña)
+     * 2. Valida que email no exista (unicidad requerida para recuperación de
+     * contraseña)
      * 3. Valida que la contraseña cumpla políticas de seguridad
      * 4. Asigna rol por defecto "CLIENTE" si no se especifica
      * 5. Verifica que el rol exista en el sistema
      * 6. Codifica la contraseña con BCrypt antes de guardar
      * 7. Persiste el usuario en la base de datos
      * 
-     * @param request DTO con datos del usuario (username, email, password, nombre, apellido, rol)
+     * @param request DTO con datos del usuario (username, email, password, nombre,
+     *                apellido, rol)
      * @return Usuario creado (sin exponer contraseña)
-     * @throws BusinessException si validaciones fallan (username/email duplicados, rol no existe, contraseña débil)
+     * @throws BusinessException si validaciones fallan (username/email duplicados,
+     *                           rol no existe, contraseña débil)
      */
     @Transactional
     public Usuario register(RegisterRequest request) {
@@ -209,31 +216,32 @@ public class AuthService {
 
         // VALIDACIÓN 1: Verificar que el username no exista
         // El username es el identificador único para login
-        if (usuarioRepository.existsByUsername(username)) {
+        if (usuarioRepository.existsByUsername(Objects.requireNonNull(username))) {
             logger.warn("⚠️ Intento de registro con username duplicado: {}", username);
             throw new BusinessException("El nombre de usuario ya está en uso");
         }
 
         // VALIDACIÓN 2: Verificar que el email no exista
         // El email se usa para recuperación de contraseña y notificaciones
-        if (usuarioRepository.existsByCorreo(email)) {
+        if (usuarioRepository.existsByCorreo(Objects.requireNonNull(email))) {
             logger.warn("⚠️ Intento de registro con email duplicado: {}", email);
             throw new BusinessException("El correo electrónico ya está en uso");
         }
 
-        // VALIDACIÓN 3: Validar que la contraseña cumpla políticas (longitud, complejidad, etc)
+        // VALIDACIÓN 3: Validar que la contraseña cumpla políticas (longitud,
+        // complejidad, etc)
         // Delega a utilidad que centraliza políticas de contraseña
         ValidationUtil.validatePassword(request.getPassword());
 
         // VALIDACIÓN 4: Determinar el rol
         // Si no se especifica, se asigna CLIENTE por defecto
-        String nombreRol = (request.getRol() != null && !request.getRol().trim().isEmpty()) 
-                ? request.getRol().trim().toUpperCase() 
+        String nombreRol = (request.getRol() != null && !request.getRol().trim().isEmpty())
+                ? request.getRol().trim().toUpperCase()
                 : "CLIENTE";
 
         // VALIDACIÓN 5: Verificar que el rol existe en el sistema
         // Esto previene asignación de roles no configurados
-        Rol rol = rolRepository.findByNombreRol(nombreRol)
+        Rol rol = rolRepository.findByNombreRol(Objects.requireNonNull(nombreRol))
                 .orElseThrow(() -> {
                     logger.error("❌ Intento de registro con rol no existente: {}", nombreRol);
                     return new BusinessException("El rol '" + nombreRol + "' no está configurado en el sistema");
@@ -250,9 +258,9 @@ public class AuthService {
         usuario.setActivo(true); // El usuario inicia activo
         usuario.setRol(rol);
 
-        Usuario usuarioRegistrado = usuarioRepository.save(usuario);
+        Usuario usuarioRegistrado = usuarioRepository.save(Objects.requireNonNull(usuario));
         logger.info("✅ Usuario registrado exitosamente: {} con rol: {}", username, nombreRol);
-        
+
         return usuarioRegistrado;
     }
 
@@ -276,17 +284,18 @@ public class AuthService {
     @Transactional
     public String forgotPassword(ForgotPasswordRequest request) {
         String emailOrUsername = request.getEmailOrUsername().trim();
-        
+
         // PASO 1: Buscar usuario por email o username (intenta ambos)
         // Se busca primero por email (más específico), luego por username
-        Usuario usuario = usuarioRepository.findByCorreo(emailOrUsername)
+        Usuario usuario = usuarioRepository.findByCorreo(Objects.requireNonNull(emailOrUsername))
                 .orElseGet(() -> usuarioRepository.findByUsername(emailOrUsername)
                         .orElse(null));
 
         if (usuario == null) {
             // SEGURIDAD: Mensaje genérico para no revelar si el usuario existe
             logger.warn("⚠️ Intento de recuperación de contraseña para usuario inexistente: {}", emailOrUsername);
-            throw new BusinessException("Si el usuario existe, se enviará un correo con instrucciones para restablecer la contraseña");
+            throw new BusinessException(
+                    "Si el usuario existe, se enviará un correo con instrucciones para restablecer la contraseña");
         }
 
         // PASO 2: Validar que la cuenta esté activa
@@ -297,22 +306,23 @@ public class AuthService {
 
         // PASO 3: Generar token único y seguro mediante SecureRandom
         String token = generateResetToken();
-        
+
         // PASO 4: Establecer token y expiración (1 hora desde ahora)
         // El token expirará automáticamente si no se usa dentro de 1 hora
         usuario.setPasswordResetToken(token);
         usuario.setPasswordResetTokenExpiry(LocalDateTime.now().plusHours(1));
-        usuarioRepository.save(usuario);
+        usuarioRepository.save(Objects.requireNonNull(usuario));
 
         // En producción, se enviaría aquí un email con el token
         // Por ahora, retornamos el token para desarrollo
         logger.info("🔑 Token de recuperación generado para usuario: {} - Válido por 1 hora", usuario.getUsername());
-        
+
         return token;
     }
 
     /**
-     * Restablece la contraseña de un usuario usando un token de recuperación válido.
+     * Restablece la contraseña de un usuario usando un token de recuperación
+     * válido.
      * 
      * Flujo de restablecimiento:
      * 1. Busca usuario asociado al token de recuperación
@@ -331,36 +341,37 @@ public class AuthService {
         String newPassword = request.getNewPassword();
 
         // PASO 1: Buscar usuario por token de recuperación
-        Usuario usuario = usuarioRepository.findByPasswordResetToken(token)
+        Usuario usuario = usuarioRepository.findByPasswordResetToken(Objects.requireNonNull(token))
                 .orElseThrow(() -> {
                     logger.warn("❌ Intento de restablecimiento con token inválido");
                     return new BusinessException("Token inválido o expirado");
                 });
 
         // PASO 2: Verificar que el token no haya expirado (validez: 1 hora)
-        if (usuario.getPasswordResetTokenExpiry() == null || 
-            usuario.getPasswordResetTokenExpiry().isBefore(LocalDateTime.now())) {
+        if (usuario.getPasswordResetTokenExpiry() == null ||
+                usuario.getPasswordResetTokenExpiry().isBefore(LocalDateTime.now())) {
             // SEGURIDAD: Limpiar token expirado para evitar intentos posteriores
             usuario.setPasswordResetToken(null);
             usuario.setPasswordResetTokenExpiry(null);
-            usuarioRepository.save(usuario);
+            usuarioRepository.save(Objects.requireNonNull(usuario));
             logger.warn("❌ Intento de restablecimiento con token expirado para usuario: {}", usuario.getUsername());
             throw new BusinessException("Token inválido o expirado");
         }
 
-        // PASO 3: Validar que la nueva contraseña cumpla políticas (longitud, complejidad, etc)
+        // PASO 3: Validar que la nueva contraseña cumpla políticas (longitud,
+        // complejidad, etc)
         ValidationUtil.validatePassword(newPassword);
 
         // PASO 4 y 5: Actualizar contraseña y limpiar token para invalidarlo
         usuario.setPasswordHash(passwordEncoder.encode(newPassword));
-        
+
         // SEGURIDAD: Limpiar token después de usarlo para evitar reutilización
         usuario.setPasswordResetToken(null);
         usuario.setPasswordResetTokenExpiry(null);
-        
+
         // PASO 6: Persistir cambios
-        usuarioRepository.save(usuario);
-        
+        usuarioRepository.save(Objects.requireNonNull(usuario));
+
         logger.info("✅ Contraseña restablecida exitosamente para usuario: {}", usuario.getUsername());
     }
 
@@ -376,5 +387,3 @@ public class AuthService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
     }
 }
-
-

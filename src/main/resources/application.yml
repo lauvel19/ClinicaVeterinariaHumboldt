@@ -28,7 +28,7 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate  # Flyway maneja las migraciones - solo validar
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -43,6 +43,8 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     validate-on-migrate: false
+    clean-disabled: false
+    clean-on-validation-error: true
     schemas: public
 
   # ============================================
@@ -104,9 +106,9 @@ app:
 logging:
   level:
     root: INFO
-    com.tuorg.veterinaria: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.springframework.mail: DEBUG
+    com.tuorg.veterinaria: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.mail: INFO
   file:
     name: logs/veterinaria-backend.log
 

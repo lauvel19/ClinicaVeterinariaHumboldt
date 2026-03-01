@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
+
 @Service
 public class ClienteService {
 
@@ -28,9 +30,9 @@ public class ClienteService {
 
     @Autowired
     public ClienteService(ClienteRepository clienteRepository,
-                          UsuarioRepository usuarioRepository,
-                          RolRepository rolRepository,
-                          PasswordEncoder passwordEncoder) {
+            UsuarioRepository usuarioRepository,
+            RolRepository rolRepository,
+            PasswordEncoder passwordEncoder) {
         this.clienteRepository = clienteRepository;
         this.usuarioRepository = usuarioRepository;
         this.rolRepository = rolRepository;
@@ -71,7 +73,7 @@ public class ClienteService {
         cliente.setRol(rolCliente);
         cliente.setActivo(true);
 
-        Cliente guardado = clienteRepository.save(cliente);
+        Cliente guardado = clienteRepository.save(Objects.requireNonNull(cliente));
         return mapToResponse(guardado);
     }
 
@@ -85,14 +87,14 @@ public class ClienteService {
 
     @Transactional(readOnly = true)
     public ClienteResponse obtener(Long id) {
-        Cliente cliente = clienteRepository.findById(id)
+        Cliente cliente = clienteRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente", "id", id));
         return mapToResponse(cliente);
     }
 
     @Transactional
     public ClienteResponse actualizar(Long id, ClienteUpdateRequest request) {
-        Cliente cliente = clienteRepository.findById(id)
+        Cliente cliente = clienteRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente", "id", id));
 
         if (request.getNombre() != null && !request.getNombre().isBlank()) {
@@ -103,7 +105,7 @@ public class ClienteService {
         }
         if (request.getCorreo() != null && !request.getCorreo().isBlank()) {
             ValidationUtil.validateEmail(request.getCorreo());
-            if (usuarioRepository.existsByCorreoAndIdPersonaNot(request.getCorreo(), id)) {
+            if (usuarioRepository.existsByCorreoAndIdPersonaNot(request.getCorreo(), Objects.requireNonNull(id))) {
                 throw new BusinessException("El correo electrónico ya está en uso por otro usuario");
             }
             cliente.setCorreo(request.getCorreo());
@@ -120,16 +122,17 @@ public class ClienteService {
             cliente.setDireccion(request.getDireccion().isBlank() ? null : request.getDireccion());
         }
         if (request.getDocumentoIdentidad() != null) {
-            cliente.setDocumentoIdentidad(request.getDocumentoIdentidad().isBlank() ? null : request.getDocumentoIdentidad());
+            cliente.setDocumentoIdentidad(
+                    request.getDocumentoIdentidad().isBlank() ? null : request.getDocumentoIdentidad());
         }
 
-        Cliente actualizado = clienteRepository.save(cliente);
+        Cliente actualizado = clienteRepository.save(Objects.requireNonNull(cliente));
         return mapToResponse(actualizado);
     }
 
     private ClienteResponse mapToResponse(Cliente cliente) {
         return new ClienteResponse(
-                cliente.getIdUsuario(),
+                Objects.requireNonNull(cliente.getIdUsuario()),
                 cliente.getNombre(),
                 cliente.getApellido(),
                 cliente.getCorreo(),
@@ -138,11 +141,6 @@ public class ClienteService {
                 cliente.getDocumentoIdentidad(),
                 cliente.getFechaRegistro(),
                 cliente.getUsername(),
-                cliente.getActivo()
-        );
+                cliente.getActivo());
     }
 }
-
-
-
-

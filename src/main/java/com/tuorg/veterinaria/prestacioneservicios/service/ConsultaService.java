@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Servicio para la gestión de consultas veterinarias.
@@ -37,161 +38,168 @@ import java.util.List;
 @Slf4j
 public class ConsultaService {
 
-    private final CitaRepository citaRepository;
-    private final PacienteRepository pacienteRepository;
-    private final HistoriaClinicaRepository historiaClinicaRepository;
-    private final RegistroMedicoRepository registroMedicoRepository;
-    private final UsuarioRepository usuarioRepository;
+        private final CitaRepository citaRepository;
+        private final PacienteRepository pacienteRepository;
+        private final HistoriaClinicaRepository historiaClinicaRepository;
+        private final RegistroMedicoRepository registroMedicoRepository;
+        private final UsuarioRepository usuarioRepository;
 
-    /**
-     * Registra una consulta para una cita específica.
-     * 
-     * Esta operación:
-     * 1. Valida que la cita existe y está en estado REALIZADA o PROGRAMADA
-     * 2. Obtiene la historia clínica del paciente
-     * 3. Crea un nuevo registro médico con la información de la consulta
-     * 4. Marca la cita como REALIZADA
-     * 
-     * @param request Datos de la consulta
-     * @param veterinarioId ID del veterinario que registra la consulta
-     * @return Respuesta con la consulta registrada
-     */
-    @Transactional
-    public ConsultaResponse registrarConsulta(ConsultaRequest request, Long veterinarioId) {
-        log.info("📝 Registrando consulta para cita ID: {}", request.getCitaId());
+        /**
+         * Registra una consulta para una cita específica.
+         * 
+         * Esta operación:
+         * 1. Valida que la cita existe y está en estado REALIZADA o PROGRAMADA
+         * 2. Obtiene la historia clínica del paciente
+         * 3. Crea un nuevo registro médico con la información de la consulta
+         * 4. Marca la cita como REALIZADA
+         * 
+         * @param request       Datos de la consulta
+         * @param veterinarioId ID del veterinario que registra la consulta
+         * @return Respuesta con la consulta registrada
+         */
+        @Transactional
+        public ConsultaResponse registrarConsulta(ConsultaRequest request, Long veterinarioId) {
+                log.info("📝 Registrando consulta para cita ID: {}", request.getCitaId());
 
-        // Validar que la cita existe
-        Cita cita = citaRepository.findById(request.getCitaId())
-                .orElseThrow(() -> new ResourceNotFoundException("Cita", "id", request.getCitaId()));
+                // Validar que la cita existe
+                Cita cita = citaRepository.findById(Objects.requireNonNull(request.getCitaId()))
+                                .orElseThrow(() -> new ResourceNotFoundException("Cita", "id", request.getCitaId()));
 
-        // Obtener paciente
-        Paciente paciente = cita.getPaciente();
-        if (paciente == null) {
-            throw new BusinessException("La cita no tiene paciente asociado");
+                // Obtener paciente
+                Paciente paciente = cita.getPaciente();
+                if (paciente == null) {
+                        throw new BusinessException("La cita no tiene paciente asociado");
+                }
+
+                // Obtener historia clínica del paciente
+                HistoriaClinica historia = historiaClinicaRepository
+                                .findByPacienteId(Objects.requireNonNull(paciente.getIdPaciente()))
+                                .orElseThrow(() -> new ResourceNotFoundException("HistoriaClinica", "pacienteId",
+                                                paciente.getIdPaciente()));
+
+                // Obtener veterinario
+                Usuario usuarioVet = usuarioRepository.findById(Objects.requireNonNull(veterinarioId))
+                                .orElseThrow(() -> new ResourceNotFoundException("Usuario", "id", veterinarioId));
+
+                if (!(usuarioVet instanceof UsuarioVeterinario)) {
+                        throw new BusinessException("El usuario no corresponde a un veterinario");
+                }
+                UsuarioVeterinario veterinario = (UsuarioVeterinario) usuarioVet;
+
+                // Crear registro médico
+                RegistroMedico registro = new RegistroMedico();
+                registro.setHistoria(historia);
+                registro.setFecha(LocalDateTime.now());
+                registro.setMotivo(request.getMotivo());
+                registro.setDiagnostico(request.getDiagnostico());
+                registro.setSignosVitales(request.getSignosVitales());
+                registro.setTratamiento(request.getTratamiento());
+                registro.setInsumosUsados(request.getInsumosUsados());
+                registro.setArchivos(request.getArchivos());
+                registro.setVeterinario(veterinario);
+
+                RegistroMedico registroGuardado = registroMedicoRepository.save(Objects.requireNonNull(registro));
+
+                // Marcar cita como REALIZADA
+                cita.setEstado("REALIZADA");
+                citaRepository.save(Objects.requireNonNull(cita));
+
+                log.info("✅ Consulta registrada exitosamente. Registro ID: {}", registroGuardado.getIdRegistro());
+
+                return mapToResponse(registroGuardado, cita, paciente, veterinario);
         }
 
-        // Obtener historia clínica del paciente
-        HistoriaClinica historia = historiaClinicaRepository.findByPacienteId(paciente.getIdPaciente())
-                .orElseThrow(() -> new ResourceNotFoundException("HistoriaClinica", "pacienteId", paciente.getIdPaciente()));
+        /**
+         * Obtiene el historial de consultas de un paciente.
+         * 
+         * @param pacienteId ID del paciente
+         * @return Lista de consultas registradas
+         */
+        @Transactional(readOnly = true)
+        public List<ConsultaResponse> obtenerHistorialPaciente(Long pacienteId) {
+                log.info("🔍 Obteniendo historial de consultas para paciente ID: {}", pacienteId);
 
-        // Obtener veterinario
-        Usuario usuarioVet = usuarioRepository.findById(veterinarioId)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario", "id", veterinarioId));
-        
-        if (!(usuarioVet instanceof UsuarioVeterinario)) {
-            throw new BusinessException("El usuario no corresponde a un veterinario");
+                Paciente paciente = pacienteRepository.findById(Objects.requireNonNull(pacienteId))
+                                .orElseThrow(() -> new ResourceNotFoundException("Paciente", "id", pacienteId));
+
+                HistoriaClinica historia = historiaClinicaRepository
+                                .findByPacienteId(Objects.requireNonNull(pacienteId))
+                                .orElseThrow(() -> new ResourceNotFoundException("HistoriaClinica", "pacienteId",
+                                                pacienteId));
+
+                List<RegistroMedico> registros = registroMedicoRepository
+                                .findByHistoriaId(Objects.requireNonNull(historia.getIdHistoria()));
+
+                return registros.stream()
+                                .map(r -> ConsultaResponse.builder()
+                                                .registroId(Objects.requireNonNull(r.getIdRegistro()))
+                                                .pacienteId(Objects.requireNonNull(paciente.getIdPaciente()))
+                                                .nombrePaciente(paciente.getNombre())
+                                                .motivo(r.getMotivo()).diagnostico(r.getDiagnostico())
+                                                .signosVitales(r.getSignosVitales())
+                                                .tratamiento(r.getTratamiento())
+                                                .nombreVeterinario(r.getVeterinario() != null
+                                                                ? r.getVeterinario().getNombre() + " "
+                                                                                + r.getVeterinario().getApellido()
+                                                                : "Sin asignar")
+                                                .fechaRegistro(r.getFecha()).insumosUsados(r.getInsumosUsados())
+                                                .archivos(r.getArchivos()).build())
+                                .toList();
         }
-        UsuarioVeterinario veterinario = (UsuarioVeterinario) usuarioVet;
 
-        // Crear registro médico
-        RegistroMedico registro = new RegistroMedico();
-        registro.setHistoria(historia);
-        registro.setFecha(LocalDateTime.now());
-        registro.setMotivo(request.getMotivo());
-        registro.setDiagnostico(request.getDiagnostico());
-        registro.setSignosVitales(request.getSignosVitales());
-        registro.setTratamiento(request.getTratamiento());
-        registro.setInsumosUsados(request.getInsumosUsados());
-        registro.setArchivos(request.getArchivos());
-        registro.setVeterinario(veterinario);
+        /**
+         * Obtiene una consulta específica.
+         * 
+         * @param registroId ID del registro médico
+         * @return Datos de la consulta
+         */
+        @Transactional(readOnly = true)
+        public ConsultaResponse obtenerConsulta(Long registroId) {
+                log.info("🔍 Obteniendo consulta ID: {}", registroId);
 
-        RegistroMedico registroGuardado = registroMedicoRepository.save(registro);
+                RegistroMedico registro = registroMedicoRepository.findById(Objects.requireNonNull(registroId))
+                                .orElseThrow(() -> new ResourceNotFoundException("RegistroMedico", "id", registroId));
 
-        // Marcar cita como REALIZADA
-        cita.setEstado("REALIZADA");
-        citaRepository.save(cita);
+                Paciente paciente = registro.getHistoria().getPaciente();
 
-        log.info("✅ Consulta registrada exitosamente. Registro ID: {}", registroGuardado.getIdRegistro());
+                return ConsultaResponse.builder()
+                                .registroId(Objects.requireNonNull(registro.getIdRegistro()))
+                                .pacienteId(Objects.requireNonNull(paciente.getIdPaciente()))
+                                .nombrePaciente(paciente.getNombre())
+                                .motivo(registro.getMotivo())
+                                .diagnostico(registro.getDiagnostico())
+                                .signosVitales(registro.getSignosVitales())
+                                .tratamiento(registro.getTratamiento())
+                                .nombreVeterinario(
+                                                registro.getVeterinario() != null
+                                                                ? registro.getVeterinario().getNombre() + " "
+                                                                                + registro.getVeterinario()
+                                                                                                .getApellido()
+                                                                : "Sin asignar")
+                                .fechaRegistro(registro.getFecha())
+                                .insumosUsados(registro.getInsumosUsados())
+                                .archivos(registro.getArchivos())
+                                .build();
+        }
 
-        return mapToResponse(registroGuardado, cita, paciente, veterinario);
-    }
-
-    /**
-     * Obtiene el historial de consultas de un paciente.
-     * 
-     * @param pacienteId ID del paciente
-     * @return Lista de consultas registradas
-     */
-    @Transactional(readOnly = true)
-    public List<ConsultaResponse> obtenerHistorialPaciente(Long pacienteId) {
-        log.info("🔍 Obteniendo historial de consultas para paciente ID: {}", pacienteId);
-
-        Paciente paciente = pacienteRepository.findById(pacienteId)
-                .orElseThrow(() -> new ResourceNotFoundException("Paciente", "id", pacienteId));
-
-        HistoriaClinica historia = historiaClinicaRepository.findByPacienteId(pacienteId)
-                .orElseThrow(() -> new ResourceNotFoundException("HistoriaClinica", "pacienteId", pacienteId));
-
-        List<RegistroMedico> registros = registroMedicoRepository.findByHistoriaId(historia.getIdHistoria());
-
-        return registros.stream()
-                .map(r -> ConsultaResponse.builder()
-                        .registroId(r.getIdRegistro())
-                        .pacienteId(paciente.getIdPaciente())
-                        .nombrePaciente(paciente.getNombre())
-                        .motivo(r.getMotivo())
-                        .diagnostico(r.getDiagnostico())
-                        .signosVitales(r.getSignosVitales())
-                        .tratamiento(r.getTratamiento())
-                        .nombreVeterinario(r.getVeterinario() != null ? 
-                                r.getVeterinario().getNombre() + " " + r.getVeterinario().getApellido() : 
-                                "Sin asignar")
-                        .fechaRegistro(r.getFecha())
-                        .insumosUsados(r.getInsumosUsados())
-                        .archivos(r.getArchivos())
-                        .build())
-                .toList();
-    }
-
-    /**
-     * Obtiene una consulta específica.
-     * 
-     * @param registroId ID del registro médico
-     * @return Datos de la consulta
-     */
-    @Transactional(readOnly = true)
-    public ConsultaResponse obtenerConsulta(Long registroId) {
-        log.info("🔍 Obteniendo consulta ID: {}", registroId);
-
-        RegistroMedico registro = registroMedicoRepository.findById(registroId)
-                .orElseThrow(() -> new ResourceNotFoundException("RegistroMedico", "id", registroId));
-
-        Paciente paciente = registro.getHistoria().getPaciente();
-
-        return ConsultaResponse.builder()
-                .registroId(registro.getIdRegistro())
-                .pacienteId(paciente.getIdPaciente())
-                .nombrePaciente(paciente.getNombre())
-                .motivo(registro.getMotivo())
-                .diagnostico(registro.getDiagnostico())
-                .signosVitales(registro.getSignosVitales())
-                .tratamiento(registro.getTratamiento())
-                .nombreVeterinario(registro.getVeterinario() != null ? 
-                        registro.getVeterinario().getNombre() + " " + registro.getVeterinario().getApellido() : 
-                        "Sin asignar")
-                .fechaRegistro(registro.getFecha())
-                .insumosUsados(registro.getInsumosUsados())
-                .archivos(registro.getArchivos())
-                .build();
-    }
-
-    /**
-     * Mapea un RegistroMedico a ConsultaResponse.
-     */
-    private ConsultaResponse mapToResponse(RegistroMedico registro, Cita cita, Paciente paciente, UsuarioVeterinario veterinario) {
-        return ConsultaResponse.builder()
-                .registroId(registro.getIdRegistro())
-                .citaId(cita.getIdCita())
-                .pacienteId(paciente.getIdPaciente())
-                .nombrePaciente(paciente.getNombre())
-                .motivo(registro.getMotivo())
-                .diagnostico(registro.getDiagnostico())
-                .signosVitales(registro.getSignosVitales())
-                .tratamiento(registro.getTratamiento())
-                .nombreVeterinario(veterinario.getNombre() + " " + veterinario.getApellido())
-                .fechaRegistro(registro.getFecha())
-                .insumosUsados(registro.getInsumosUsados())
-                .archivos(registro.getArchivos())
-                .build();
-    }
+        /**
+         * Mapea un RegistroMedico a ConsultaResponse.
+         */
+        private ConsultaResponse mapToResponse(RegistroMedico registro, Cita cita, Paciente paciente,
+                        UsuarioVeterinario veterinario) {
+                return ConsultaResponse.builder()
+                                .registroId(Objects.requireNonNull(registro.getIdRegistro()))
+                                .citaId(Objects.requireNonNull(cita.getIdCita()))
+                                .pacienteId(Objects.requireNonNull(paciente.getIdPaciente()))
+                                .nombrePaciente(paciente.getNombre())
+                                .motivo(registro.getMotivo())
+                                .diagnostico(registro.getDiagnostico())
+                                .signosVitales(registro.getSignosVitales())
+                                .tratamiento(registro.getTratamiento())
+                                .nombreVeterinario(veterinario.getNombre() + " " + veterinario.getApellido())
+                                .fechaRegistro(registro.getFecha())
+                                .insumosUsados(registro.getInsumosUsados())
+                                .archivos(registro.getArchivos())
+                                .build();
+        }
 }

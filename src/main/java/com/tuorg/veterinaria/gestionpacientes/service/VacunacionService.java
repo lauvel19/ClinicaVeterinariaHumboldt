@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+
 /**
  * Servicio para la gestión de vacunaciones.
  * 
@@ -45,12 +47,12 @@ public class VacunacionService {
      * Constructor con inyección de dependencias.
      * 
      * @param vacunacionRepository Repositorio de vacunaciones
-     * @param pacienteRepository Repositorio de pacientes
+     * @param pacienteRepository   Repositorio de pacientes
      */
     @Autowired
     public VacunacionService(VacunacionRepository vacunacionRepository,
-                             PacienteRepository pacienteRepository,
-                             UsuarioRepository usuarioRepository) {
+            PacienteRepository pacienteRepository,
+            UsuarioRepository usuarioRepository) {
         this.vacunacionRepository = vacunacionRepository;
         this.pacienteRepository = pacienteRepository;
         this.usuarioRepository = usuarioRepository;
@@ -64,7 +66,7 @@ public class VacunacionService {
      */
     @Transactional
     public VacunacionResponse registrarVacuna(VacunacionRequest request) {
-        Paciente paciente = pacienteRepository.findById(request.getPacienteId())
+        Paciente paciente = pacienteRepository.findById(Objects.requireNonNull(request.getPacienteId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente", "id", request.getPacienteId()));
 
         if (request.getFechaAplicacion().isAfter(LocalDate.now())) {
@@ -73,7 +75,7 @@ public class VacunacionService {
 
         UsuarioVeterinario veterinario = null;
         if (request.getVeterinarioId() != null) {
-            Usuario usuario = usuarioRepository.findById(request.getVeterinarioId())
+            Usuario usuario = usuarioRepository.findById(Objects.requireNonNull(request.getVeterinarioId()))
                     .orElseThrow(() -> new ResourceNotFoundException("Usuario", "id", request.getVeterinarioId()));
             if (!(usuario instanceof UsuarioVeterinario)) {
                 throw new BusinessException("El usuario indicado no corresponde a un veterinario");
@@ -88,7 +90,7 @@ public class VacunacionService {
         vacunacion.setProximaDosis(request.getProximaDosis());
         vacunacion.setVeterinario(veterinario);
 
-        Vacunacion guardada = vacunacionRepository.save(vacunacion);
+        Vacunacion guardada = vacunacionRepository.save(Objects.requireNonNull(vacunacion));
         return mapToResponse(guardada);
     }
 
@@ -101,7 +103,7 @@ public class VacunacionService {
      */
     @Transactional
     public VacunacionResponse programarProximaDosis(Long vacunacionId, ProgramarProximaDosisRequest request) {
-        Vacunacion vacunacion = vacunacionRepository.findById(vacunacionId)
+        Vacunacion vacunacion = vacunacionRepository.findById(Objects.requireNonNull(vacunacionId))
                 .orElseThrow(() -> new ResourceNotFoundException("Vacunacion", "id", vacunacionId));
 
         LocalDate proximaDosis = request.getProximaDosis();
@@ -110,7 +112,7 @@ public class VacunacionService {
         }
 
         vacunacion.setProximaDosis(proximaDosis);
-        Vacunacion actualizada = vacunacionRepository.save(vacunacion);
+        Vacunacion actualizada = vacunacionRepository.save(Objects.requireNonNull(vacunacion));
         return mapToResponse(actualizada);
     }
 
@@ -122,7 +124,7 @@ public class VacunacionService {
      */
     @Transactional(readOnly = true)
     public List<VacunacionResponse> obtenerPorPaciente(Long pacienteId) {
-        return vacunacionRepository.findByPacienteId(pacienteId)
+        return vacunacionRepository.findByPacienteId(Objects.requireNonNull(pacienteId))
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -146,30 +148,25 @@ public class VacunacionService {
     private VacunacionResponse mapToResponse(Vacunacion vacunacion) {
         Paciente paciente = vacunacion.getPaciente();
         VacunacionResponse.PacienteSummary pacienteSummary = new VacunacionResponse.PacienteSummary(
-                paciente.getIdPaciente(),
-                paciente.getNombre()
-        );
+                Objects.requireNonNull(paciente.getIdPaciente()),
+                paciente.getNombre());
 
         VacunacionResponse.VeterinarioSummary veterinarioSummary = null;
         if (vacunacion.getVeterinario() != null) {
             UsuarioVeterinario vet = vacunacion.getVeterinario();
             veterinarioSummary = new VacunacionResponse.VeterinarioSummary(
-                    vet.getIdUsuario(),
+                    Objects.requireNonNull(vet.getIdUsuario()),
                     vet.getNombre(),
                     vet.getApellido(),
-                    vet.getEspecialidad()
-            );
+                    vet.getEspecialidad());
         }
 
         return new VacunacionResponse(
-                vacunacion.getIdVacunacion(),
+                Objects.requireNonNull(vacunacion.getIdVacunacion()),
                 pacienteSummary,
                 vacunacion.getTipoVacuna(),
                 vacunacion.getFechaAplicacion(),
                 vacunacion.getProximaDosis(),
-                veterinarioSummary
-        );
+                veterinarioSummary);
     }
 }
-
-

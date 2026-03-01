@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -56,16 +57,16 @@ public class UsuarioService {
     /**
      * Constructor con inyección de dependencias.
      * 
-     * @param usuarioRepository Repositorio de usuarios
+     * @param usuarioRepository     Repositorio de usuarios
      * @param veterinarioRepository Repositorio de veterinarios
-     * @param passwordEncoder Codificador de contraseñas
-     * @param rolRepository Repositorio de roles
+     * @param passwordEncoder       Codificador de contraseñas
+     * @param rolRepository         Repositorio de roles
      */
     @Autowired
     public UsuarioService(UsuarioRepository usuarioRepository,
-                          UsuarioVeterinarioRepository veterinarioRepository,
-                          PasswordEncoder passwordEncoder,
-                          RolRepository rolRepository) {
+            UsuarioVeterinarioRepository veterinarioRepository,
+            PasswordEncoder passwordEncoder,
+            RolRepository rolRepository) {
         this.usuarioRepository = usuarioRepository;
         this.veterinarioRepository = veterinarioRepository;
         this.passwordEncoder = passwordEncoder;
@@ -82,13 +83,13 @@ public class UsuarioService {
     public UsuarioResponse crear(UsuarioRequest request) {
         // Validar username
         ValidationUtil.validateUsername(request.getUsername());
-        if (usuarioRepository.existsByUsername(request.getUsername())) {
+        if (usuarioRepository.existsByUsername(Objects.requireNonNull(request.getUsername()))) {
             throw new BusinessException("El nombre de usuario ya está en uso");
         }
 
         // Validar email
         ValidationUtil.validateEmail(request.getCorreo());
-        if (usuarioRepository.existsByCorreo(request.getCorreo())) {
+        if (usuarioRepository.existsByCorreo(Objects.requireNonNull(request.getCorreo()))) {
             throw new BusinessException("El correo electrónico ya está en uso");
         }
 
@@ -113,7 +114,7 @@ public class UsuarioService {
         usuario.setRol(rol);
         usuario.setActivo(request.getActivo() != null ? request.getActivo() : Boolean.TRUE);
 
-        Usuario guardado = usuarioRepository.save(usuario);
+        Usuario guardado = usuarioRepository.save(Objects.requireNonNull(usuario));
         return mapToResponse(guardado);
     }
 
@@ -125,7 +126,7 @@ public class UsuarioService {
      */
     @Transactional(readOnly = true)
     public UsuarioResponse obtener(Long id) {
-        Usuario usuario = usuarioRepository.findById(id)
+        Usuario usuario = usuarioRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario", "id", id));
         return mapToResponse(usuario);
     }
@@ -146,13 +147,13 @@ public class UsuarioService {
     /**
      * Actualiza un usuario existente.
      * 
-     * @param id ID del usuario
+     * @param id      ID del usuario
      * @param usuario Datos actualizados del usuario
      * @return Usuario actualizado
      */
     @Transactional
     public UsuarioResponse actualizar(Long id, UsuarioUpdateRequest request) {
-        Usuario usuarioExistente = usuarioRepository.findById(id)
+        Usuario usuarioExistente = usuarioRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario", "id", id));
 
         if (request.getNombre() != null) {
@@ -196,7 +197,7 @@ public class UsuarioService {
             usuarioExistente.setActivo(request.getActivo());
         }
 
-        Usuario actualizado = usuarioRepository.save(usuarioExistente);
+        Usuario actualizado = usuarioRepository.save(Objects.requireNonNull(usuarioExistente));
         return mapToResponse(actualizado);
     }
 
@@ -207,10 +208,10 @@ public class UsuarioService {
      */
     @Transactional
     public void eliminar(Long id) {
-        Usuario usuario = usuarioRepository.findById(id)
+        Usuario usuario = usuarioRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario", "id", id));
         usuario.setActivo(false);
-        usuarioRepository.save(usuario);
+        usuarioRepository.save(Objects.requireNonNull(usuario));
     }
 
     /**
@@ -220,10 +221,10 @@ public class UsuarioService {
      */
     @Transactional
     public void actualizarUltimoAcceso(String username) {
-        Usuario usuario = usuarioRepository.findByUsername(username)
+        Usuario usuario = usuarioRepository.findByUsername(Objects.requireNonNull(username))
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario", "username", username));
         usuario.setUltimoAcceso(LocalDateTime.now());
-        usuarioRepository.save(usuario);
+        usuarioRepository.save(Objects.requireNonNull(usuario));
     }
 
     /**
@@ -244,7 +245,7 @@ public class UsuarioService {
         if (rolId == null) {
             throw new BusinessException("Debe especificar un rol válido");
         }
-        return rolRepository.findById(rolId)
+        return rolRepository.findById(Objects.requireNonNull(rolId))
                 .orElseThrow(() -> new ResourceNotFoundException("Rol", "id", rolId));
     }
 
@@ -260,7 +261,7 @@ public class UsuarioService {
         }
 
         return new UsuarioResponse(
-                usuario.getIdUsuario(),
+                Objects.requireNonNull(usuario.getIdUsuario()),
                 usuario.getNombre(),
                 usuario.getApellido(),
                 usuario.getCorreo(),
@@ -269,13 +270,11 @@ public class UsuarioService {
                 usuario.getUsername(),
                 usuario.getActivo(),
                 usuario.getUltimoAcceso(),
-                rolResponse
-        );
+                rolResponse);
     }
 
     private PermisoResponse mapToPermisoResponse(Permiso permiso) {
-        return new PermisoResponse(permiso.getIdPermiso(), permiso.getNombre(), permiso.getDescripcion());
+        return new PermisoResponse(Objects.requireNonNull(permiso.getIdPermiso()), permiso.getNombre(),
+                permiso.getDescripcion());
     }
 }
-
-

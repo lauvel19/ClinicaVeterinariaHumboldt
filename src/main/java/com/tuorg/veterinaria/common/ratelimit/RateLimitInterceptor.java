@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -20,20 +21,20 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private RateLimitService rateLimitService;
 
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
+    public boolean preHandle(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
+            @NonNull Object handler)
             throws Exception {
-        
+
         String clientIp = getClientIP(request);
-        
+
         if (!rateLimitService.tryConsume(clientIp)) {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType("application/json");
             response.getWriter().write(
-                "{\"success\": false, \"message\": \"Demasiadas peticiones. Por favor, espere un momento antes de intentar nuevamente.\"}"
-            );
+                    "{\"success\": false, \"message\": \"Demasiadas peticiones. Por favor, espere un momento antes de intentar nuevamente.\"}");
             return false;
         }
-        
+
         return true;
     }
 

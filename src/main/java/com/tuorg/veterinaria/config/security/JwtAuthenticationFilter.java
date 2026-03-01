@@ -53,20 +53,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     /**
      * Filtra cada petición para validar el token JWT.
      * 
-     * @param request Petición HTTP
-     * @param response Respuesta HTTP
+     * @param request     Petición HTTP
+     * @param response    Respuesta HTTP
      * @param filterChain Cadena de filtros
      * @throws ServletException Si hay error en el servlet
-     * @throws IOException Si hay error de I/O
+     * @throws IOException      Si hay error de I/O
      */
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+    protected void doFilterInternal(
+            @org.springframework.lang.NonNull HttpServletRequest request,
+            @org.springframework.lang.NonNull HttpServletResponse response,
+            @org.springframework.lang.NonNull FilterChain filterChain)
             throws ServletException, IOException {
         // Ignorar rutas públicas (login, registro, etc.)
         // El context-path es /api, así que las rutas aquí son relativas a ese path
         String servletPath = request.getServletPath(); // Esto devuelve la ruta sin el context-path
-        
-        // Verificar si es una ruta pública (sin /api porque el context-path ya lo incluye)
+
+        // Verificar si es una ruta pública (sin /api porque el context-path ya lo
+        // incluye)
         if (servletPath.startsWith("/auth/") || servletPath.startsWith("/configuracion/parametros/")) {
             filterChain.doFilter(request, response);
             return;
@@ -78,7 +82,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (jwt != null) {
                 String username = tokenProvider.getUsernameFromToken(jwt);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                
+
                 if (tokenProvider.validateToken(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());

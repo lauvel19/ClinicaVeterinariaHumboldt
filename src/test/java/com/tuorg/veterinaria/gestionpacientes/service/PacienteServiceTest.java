@@ -35,6 +35,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Pruebas unitarias de PacienteService")
+@SuppressWarnings("null")
 class PacienteServiceTest {
 
     @Mock
@@ -171,4 +172,3 @@ class PacienteServiceTest {
         assertThat(response.getCliente().getNombre()).isEqualTo("Juan");
     }
 }
-

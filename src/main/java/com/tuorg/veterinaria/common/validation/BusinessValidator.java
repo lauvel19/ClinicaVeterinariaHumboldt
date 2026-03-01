@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Componente para validaciones de negocio avanzadas.
@@ -35,9 +36,9 @@ public class BusinessValidator {
 
     @Autowired
     public BusinessValidator(ProductoRepository productoRepository,
-                            PacienteRepository pacienteRepository,
-                            CitaRepository citaRepository,
-                            FacturaRepository facturaRepository) {
+            PacienteRepository pacienteRepository,
+            CitaRepository citaRepository,
+            FacturaRepository facturaRepository) {
         this.productoRepository = productoRepository;
         this.pacienteRepository = pacienteRepository;
         this.citaRepository = citaRepository;
@@ -47,80 +48,78 @@ public class BusinessValidator {
     /**
      * Valida que un movimiento de inventario no deje el stock en negativo.
      * 
-     * @param productoId ID del producto
+     * @param productoId     ID del producto
      * @param cantidadSalida Cantidad a descontar
      * @throws BusinessException Si el stock resultante sería negativo
      */
     public void validarStockSuficiente(Long productoId, Integer cantidadSalida) {
-        Producto producto = productoRepository.findById(productoId)
+        Producto producto = productoRepository.findById(Objects.requireNonNull(productoId))
                 .orElseThrow(() -> new BusinessException("Producto no encontrado"));
-        
+
         int stockActual = producto.getStock() != null ? producto.getStock() : 0;
         int stockResultante = stockActual - cantidadSalida;
-        
+
         if (stockResultante < 0) {
             throw new BusinessException(
-                String.format("Stock insuficiente. Disponible: %d, Solicitado: %d. " +
-                             "Se requieren %d unidades adicionales.", 
-                             stockActual, cantidadSalida, Math.abs(stockResultante))
-            );
+                    String.format("Stock insuficiente. Disponible: %d, Solicitado: %d. " +
+                            "Se requieren %d unidades adicionales.",
+                            stockActual, cantidadSalida, Math.abs(stockResultante)));
         }
     }
 
     /**
      * Valida que no existan citas solapadas para un mismo paciente.
      * 
-     * @param pacienteId ID del paciente
-     * @param fechaHora Fecha y hora de la cita
+     * @param pacienteId      ID del paciente
+     * @param fechaHora       Fecha y hora de la cita
      * @param duracionMinutos Duración estimada de la cita en minutos
      * @throws BusinessException Si existe solapamiento
      */
-    public void validarSolapamientoCitasPaciente(Long pacienteId, LocalDateTime fechaHora, 
-                                                 int duracionMinutos) {
+    public void validarSolapamientoCitasPaciente(Long pacienteId, LocalDateTime fechaHora,
+            int duracionMinutos) {
         LocalDateTime inicioRango = fechaHora.minusMinutes(duracionMinutos);
         LocalDateTime finRango = fechaHora.plusMinutes(duracionMinutos);
-        
-        List<Cita> citasExistentes = citaRepository.findByPacienteId(pacienteId)
-            .stream()
-            .filter(c -> "PROGRAMADA".equals(c.getEstado()))
-            .filter(c -> {
-                LocalDateTime fechaCita = c.getFechaHora();
-                return fechaCita.isAfter(inicioRango) && fechaCita.isBefore(finRango);
-            })
-            .toList();
-        
+
+        List<Cita> citasExistentes = citaRepository.findByPacienteId(Objects.requireNonNull(pacienteId))
+                .stream()
+                .filter(c -> "PROGRAMADA".equals(c.getEstado()))
+                .filter(c -> {
+                    LocalDateTime fechaCita = c.getFechaHora();
+                    return fechaCita.isAfter(inicioRango) && fechaCita.isBefore(finRango);
+                })
+                .toList();
+
         if (!citasExistentes.isEmpty()) {
             throw new BusinessException(
-                String.format("El paciente ya tiene una cita programada cerca de ese horario (%s). " +
-                             "Por favor, seleccione otra fecha y hora.",
-                             citasExistentes.get(0).getFechaHora())
-            );
+                    String.format("El paciente ya tiene una cita programada cerca de ese horario (%s). " +
+                            "Por favor, seleccione otra fecha y hora.",
+                            citasExistentes.get(0).getFechaHora()));
         }
     }
 
     /**
      * Detecta y advierte sobre posibles pacientes duplicados.
      * 
-     * @param nombre Nombre del paciente
+     * @param nombre    Nombre del paciente
      * @param clienteId ID del cliente propietario
-     * @param especie Especie del paciente
+     * @param especie   Especie del paciente
      * @return Lista de pacientes similares que podrían ser duplicados
      */
     public List<Paciente> detectarPacientesDuplicados(String nombre, Long clienteId, String especie) {
         // Buscar pacientes con el mismo nombre y propietario
         List<Paciente> pacientesSimilares = pacienteRepository.buscarPorNombre(nombre)
-            .stream()
-            .filter(p -> p.getCliente() != null && p.getCliente().getIdUsuario().equals(clienteId))
-            .filter(p -> especie == null || especie.equalsIgnoreCase(p.getEspecie()))
-            .toList();
-        
+                .stream()
+                .filter(p -> p.getCliente() != null && p.getCliente().getIdUsuario().equals(clienteId))
+                .filter(p -> especie == null || especie.equalsIgnoreCase(p.getEspecie()))
+                .toList();
+
         return pacientesSimilares;
     }
 
     /**
      * Valida que un cliente no tenga deudas pendientes antes de agendar una cita.
      * 
-     * @param clienteId ID del cliente
+     * @param clienteId            ID del cliente
      * @param montoMaximoPermitido Monto máximo de deuda permitido
      * @throws BusinessException Si el cliente tiene deuda excesiva
      */
@@ -129,7 +128,7 @@ public class BusinessValidator {
             throw new BusinessException("El monto máximo permitido no puede ser negativo");
         }
 
-        BigDecimal deudaPendiente = facturaRepository.findByClienteId(clienteId)
+        BigDecimal deudaPendiente = facturaRepository.findByClienteId(Objects.requireNonNull(clienteId))
                 .stream()
                 .filter(factura -> "PENDIENTE".equalsIgnoreCase(factura.getEstado()))
                 .map(Factura::getTotal)
@@ -140,8 +139,7 @@ public class BusinessValidator {
         if (deudaPendiente.compareTo(limite) > 0) {
             throw new BusinessException(
                     String.format("El cliente supera la deuda permitida. Deuda actual: %.2f, límite: %.2f",
-                            deudaPendiente.doubleValue(), montoMaximoPermitido)
-            );
+                            deudaPendiente.doubleValue(), montoMaximoPermitido));
         }
     }
 
@@ -152,15 +150,14 @@ public class BusinessValidator {
      * @throws BusinessException Si el precio es inválido o no está configurado
      */
     public void validarPrecioProducto(Long productoId) {
-        Producto producto = productoRepository.findById(productoId)
+        Producto producto = productoRepository.findById(Objects.requireNonNull(productoId))
                 .orElseThrow(() -> new BusinessException("Producto no encontrado"));
-        
+
         if (producto.getPrecioUnitario() == null || producto.getPrecioUnitario().doubleValue() <= 0) {
             throw new BusinessException(
-                String.format("El producto '%s' no tiene un precio configurado o es inválido. " +
-                             "Por favor, configure el precio antes de venderlo.",
-                             producto.getNombre())
-            );
+                    String.format("El producto '%s' no tiene un precio configurado o es inválido. " +
+                            "Por favor, configure el precio antes de venderlo.",
+                            producto.getNombre()));
         }
     }
 }

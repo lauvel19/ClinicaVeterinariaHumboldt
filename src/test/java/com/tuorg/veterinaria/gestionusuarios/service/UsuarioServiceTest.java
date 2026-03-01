@@ -30,11 +30,13 @@ import static org.mockito.Mockito.*;
 /**
  * Pruebas unitarias para UsuarioService.
  * 
- * Verifica reglas de negocio (usuario duplicado, email en uso, contraseña corta)
+ * Verifica reglas de negocio (usuario duplicado, email en uso, contraseña
+ * corta)
  * y mapeo DTO → entidad correctamente.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Pruebas unitarias de UsuarioService")
+@SuppressWarnings("null")
 class UsuarioServiceTest {
 
     @Mock
@@ -190,4 +192,3 @@ class UsuarioServiceTest {
         verify(usuarioRepository).findById(999L);
     }
 }
-

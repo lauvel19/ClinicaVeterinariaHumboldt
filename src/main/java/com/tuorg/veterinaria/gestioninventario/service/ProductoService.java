@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+
 /**
  * Servicio para la gestión de productos del inventario.
  * 
@@ -26,6 +27,7 @@ import java.util.Map;
  * @author Equipo de Desarrollo
  * @version 1.0.0
  */
+@SuppressWarnings("null")
 @Service
 public class ProductoService {
 
@@ -59,14 +61,15 @@ public class ProductoService {
      * - "productos": Cache de listado completo
      * - "productosPorTipo": Cache de productos por tipo
      * 
-     * @param request DTO con SKU, nombre, descripción, tipo, precio, UM, stock inicial, metadatos
+     * @param request DTO con SKU, nombre, descripción, tipo, precio, UM, stock
+     *                inicial, metadatos
      * @return ProductoResponse con datos del producto creado
      * @throws BusinessException si SKU duplicado, precio negativo, o stock negativo
      */
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = "productos", allEntries = true),
-        @CacheEvict(value = "productosPorTipo", allEntries = true)
+            @CacheEvict(value = "productos", allEntries = true),
+            @CacheEvict(value = "productosPorTipo", allEntries = true)
     })
     public ProductoResponse crear(ProductoRequest request) {
         // VALIDACIÓN 1: Verificar unicidad de SKU
@@ -99,7 +102,7 @@ public class ProductoService {
 
         // PASO 5: Persistir en base de datos
         Producto guardado = productoRepository.save(producto);
-        
+
         return mapToResponse(guardado);
     }
 
@@ -132,14 +135,14 @@ public class ProductoService {
     /**
      * Actualiza un producto existente.
      * 
-     * @param id ID del producto
+     * @param id      ID del producto
      * @param request Datos actualizados del producto
      * @return Producto actualizado
      */
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = "productos", allEntries = true),
-        @CacheEvict(value = "productosPorTipo", allEntries = true)
+            @CacheEvict(value = "productos", allEntries = true),
+            @CacheEvict(value = "productosPorTipo", allEntries = true)
     })
     public ProductoResponse actualizar(Long id, ProductoUpdateRequest request) {
         Producto producto = obtenerEntidad(id);
@@ -188,20 +191,20 @@ public class ProductoService {
      * Nota: Delta puede ser positivo (entrada) o negativo (salida/consumo)
      * 
      * @param productoId ID del producto a actualizar
-     * @param delta Incremento (positivo) o decremento (negativo) del stock
+     * @param delta      Incremento (positivo) o decremento (negativo) del stock
      * @return Producto con stock actualizado
      * @throws ResourceNotFoundException si producto no existe
-     * @throws BusinessException si resultado sería negativo
+     * @throws BusinessException         si resultado sería negativo
      */
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = "productos", allEntries = true),
-        @CacheEvict(value = "productosPorTipo", allEntries = true)
+            @CacheEvict(value = "productos", allEntries = true),
+            @CacheEvict(value = "productosPorTipo", allEntries = true)
     })
     public Producto actualizarStock(Long productoId, Integer delta) {
         // PASO 1: Obtener producto por ID
         Producto producto = obtenerEntidad(productoId);
-        
+
         // PASO 2: Calcular nuevo stock
         int nuevoStock = producto.getStock() + delta;
 
@@ -213,7 +216,7 @@ public class ProductoService {
 
         // PASO 4: Actualizar stock en entidad
         producto.setStock(nuevoStock);
-        
+
         // PASO 5: Persistir cambio (dentro de transacción @Transactional)
         // Los caches se invalidan automáticamente por la anotación @Caching
         return productoRepository.save(producto);
@@ -223,7 +226,7 @@ public class ProductoService {
      * Verifica la disponibilidad de stock para una cantidad solicitada.
      * 
      * @param productoId ID del producto
-     * @param cantidad Cantidad solicitada
+     * @param cantidad   Cantidad solicitada
      * @return true si hay stock suficiente, false en caso contrario
      */
     @Transactional(readOnly = true)
@@ -263,9 +266,6 @@ public class ProductoService {
                 producto.getStock(),
                 producto.getPrecioUnitario(),
                 producto.getUm(),
-                metadatos
-        );
+                metadatos);
     }
 }
-
-

@@ -12,6 +12,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Servicio para la gestión de estadísticas.
@@ -43,9 +44,9 @@ public class EstadisticaService {
     /**
      * Calcula una estadística.
      * 
-     * @param nombre Nombre de la estadística
+     * @param nombre        Nombre de la estadística
      * @param periodoInicio Fecha de inicio del período
-     * @param periodoFin Fecha de fin del período
+     * @param periodoFin    Fecha de fin del período
      * @return Estadistica calculada
      */
     @Transactional
@@ -57,15 +58,15 @@ public class EstadisticaService {
         estadistica.setValor(valorCalculado);
         estadistica.setPeriodoInicio(periodoInicio);
         estadistica.setPeriodoFin(periodoFin);
-        
-        return estadisticaRepository.save(estadistica);
+
+        return estadisticaRepository.save(Objects.requireNonNull(estadistica));
     }
 
     /**
      * Calcula estadísticas para un reporte (usado por Facade).
      * 
      * @param tipoReporte Tipo de reporte
-     * @param parametros Parámetros del reporte
+     * @param parametros  Parámetros del reporte
      * @return Lista de estadísticas calculadas
      */
     @Transactional
@@ -140,16 +141,16 @@ public class EstadisticaService {
      * Actualiza una estadística existente.
      * 
      * @param estadisticaId ID de la estadística
-     * @param nuevoValor Nuevo valor de la estadística
+     * @param nuevoValor    Nuevo valor de la estadística
      * @return Estadistica actualizada
      */
     @Transactional
     public Estadistica actualizar(Long estadisticaId, BigDecimal nuevoValor) {
-        Estadistica estadistica = estadisticaRepository.findById(estadisticaId)
+        Estadistica estadistica = estadisticaRepository.findById(Objects.requireNonNull(estadisticaId))
                 .orElseThrow(() -> new RuntimeException("Estadística no encontrada"));
-        
+
         estadistica.setValor(nuevoValor);
-        return estadisticaRepository.save(estadistica);
+        return estadisticaRepository.save(Objects.requireNonNull(estadistica));
     }
 
     /**
@@ -162,4 +163,3 @@ public class EstadisticaService {
         return estadisticaRepository.findAll();
     }
 }
-

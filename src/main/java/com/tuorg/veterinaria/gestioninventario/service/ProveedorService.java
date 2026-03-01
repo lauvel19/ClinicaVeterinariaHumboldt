@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
  * @author Equipo de Desarrollo
  * @version 1.0.0
  */
+@SuppressWarnings("null")
 @Service
 public class ProveedorService {
 
@@ -86,14 +87,14 @@ public class ProveedorService {
     /**
      * Actualiza un proveedor existente.
      * 
-     * @param id ID del proveedor
+     * @param id      ID del proveedor
      * @param request Datos actualizados del proveedor
      * @return Proveedor actualizado
      */
     @Transactional
     public ProveedorResponse actualizar(Long id, ProveedorRequest request) {
         Proveedor proveedor = obtenerEntidad(id);
-        
+
         if (request.getNombre() != null) {
             proveedor.setNombre(request.getNombre());
         }
@@ -142,4 +143,3 @@ public class ProveedorService {
                 .build();
     }
 }
-

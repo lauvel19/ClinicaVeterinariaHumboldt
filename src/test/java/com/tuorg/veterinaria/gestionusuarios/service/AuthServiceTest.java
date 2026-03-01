@@ -36,6 +36,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Pruebas unitarias de AuthService")
+@SuppressWarnings("null")
 class AuthServiceTest {
 
     @Mock
@@ -182,4 +183,3 @@ class AuthServiceTest {
         verify(usuarioRepository, never()).save(any());
     }
 }
-

@@ -29,6 +29,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Pruebas unitarias de ProductoService")
+@SuppressWarnings("null")
 class ProductoServiceTest {
 
     @Mock
@@ -132,4 +133,3 @@ class ProductoServiceTest {
         verify(productoRepository).findById(1L);
     }
 }
-

@@ -87,7 +87,7 @@ public class MovimientoInventarioController {
      * Obtiene movimientos en un rango de fechas.
      * 
      * @param fechaInicio Fecha de inicio (formato: yyyy-MM-ddTHH:mm:ss)
-     * @param fechaFin Fecha de fin (formato: yyyy-MM-ddTHH:mm:ss)
+     * @param fechaFin    Fecha de fin (formato: yyyy-MM-ddTHH:mm:ss)
      * @return Respuesta con la lista de movimientos
      */
     @GetMapping("/rango-fechas")
@@ -96,9 +96,7 @@ public class MovimientoInventarioController {
             @RequestParam String fechaFin) {
         List<MovimientoInventarioResponse> movimientos = movimientoInventarioService.obtenerPorRangoFechas(
                 LocalDateTime.parse(fechaInicio),
-                LocalDateTime.parse(fechaFin)
-        );
+                LocalDateTime.parse(fechaFin));
         return ResponseEntity.ok(ApiResponse.success("Movimientos obtenidos exitosamente", movimientos));
     }
 }
-

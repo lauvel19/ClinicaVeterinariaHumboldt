@@ -31,6 +31,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
 /**
  * Servicio para la gestión de servicios prestados.
  *
@@ -50,11 +52,11 @@ public class ServicioPrestadoService {
 
     @Autowired
     public ServicioPrestadoService(ServicioPrestadoRepository servicioPrestadoRepository,
-                                   CitaRepository citaRepository,
-                                   ServicioRepository servicioRepository,
-                                   MovimientoInventarioService movimientoInventarioService,
-                                   FacturaService facturaService,
-                                   ObjectMapper objectMapper) {
+            CitaRepository citaRepository,
+            ServicioRepository servicioRepository,
+            MovimientoInventarioService movimientoInventarioService,
+            FacturaService facturaService,
+            ObjectMapper objectMapper) {
         this.servicioPrestadoRepository = servicioPrestadoRepository;
         this.citaRepository = citaRepository;
         this.servicioRepository = servicioRepository;
@@ -64,7 +66,8 @@ public class ServicioPrestadoService {
     }
 
     /**
-     * Registra la ejecución de un servicio (transacción orquestada con múltiples subsistemas).
+     * Registra la ejecución de un servicio (transacción orquestada con múltiples
+     * subsistemas).
      * 
      * Esta operación integra:
      * 1. Validación del estado de la cita
@@ -76,14 +79,14 @@ public class ServicioPrestadoService {
      */
     @Transactional
     public ServicioPrestadoResponse registrarEjecucion(ServicioPrestadoRequest request) {
-        Cita cita = citaRepository.findById(request.getCitaId())
+        Cita cita = citaRepository.findById(Objects.requireNonNull(request.getCitaId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Cita", "id", request.getCitaId()));
 
         if (!AppConstants.ESTADO_CITA_PROGRAMADA.equals(cita.getEstado())) {
             throw new BusinessException("Solo se pueden registrar servicios para citas en estado PROGRAMADA");
         }
 
-        Servicio servicio = servicioRepository.findById(request.getServicioId())
+        Servicio servicio = servicioRepository.findById(Objects.requireNonNull(request.getServicioId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Servicio", "id", request.getServicioId()));
 
         ServicioPrestado servicioPrestado = new ServicioPrestado();
@@ -103,12 +106,12 @@ public class ServicioPrestadoService {
         // 🔴 PASO CRÍTICO 1: Validar stock disponible ANTES de registrar
         if (request.getInsumosConsumidos() != null && !request.getInsumosConsumidos().isEmpty()) {
             for (ServicioPrestadoInsumoRequest insumo : request.getInsumosConsumidos()) {
-                validarStockDisponible(insumo.getProductoId(), insumo.getCantidad());
+                validarStockDisponible(Objects.requireNonNull(insumo.getProductoId()), insumo.getCantidad());
             }
         }
 
         // Guardar el servicio prestado
-        ServicioPrestado guardado = servicioPrestadoRepository.save(servicioPrestado);
+        ServicioPrestado guardado = servicioPrestadoRepository.save(Objects.requireNonNull(servicioPrestado));
         log.info("✅ Servicio prestado registrado. ID: {}", guardado.getIdPrestado());
 
         // 🔴 PASO CRÍTICO 2: Consumir inventario automáticamente
@@ -126,19 +129,18 @@ public class ServicioPrestadoService {
         }
 
         FacturaRequest facturaRequest = new FacturaRequest();
-        facturaRequest.setClienteId(cliente.getIdUsuario());
+        facturaRequest.setClienteId(Objects.requireNonNull(cliente.getIdUsuario()));
         facturaRequest.setTotal(costoTotal);
         facturaRequest.setContenido(Map.of(
-                "servicioPrestadoId", guardado.getIdPrestado(),
-                "citaId", cita.getIdCita(),
-                "servicioId", servicio.getIdServicio()
-        ));
+                "servicioPrestadoId", Objects.requireNonNull(guardado.getIdPrestado()),
+                "citaId", Objects.requireNonNull(cita.getIdCita()),
+                "servicioId", Objects.requireNonNull(servicio.getIdServicio())));
         facturaService.crear(facturaRequest);
         log.info("✅ Factura generada para servicio prestado");
 
         // Actualizar estado de cita
         cita.setEstado(AppConstants.ESTADO_CITA_REALIZADA);
-        citaRepository.save(cita);
+        citaRepository.save(Objects.requireNonNull(cita));
         log.info("✅ Estado de cita actualizado a REALIZADA");
 
         return mapToResponse(guardado);
@@ -146,7 +148,8 @@ public class ServicioPrestadoService {
 
     @Transactional(readOnly = true)
     public String generarResumen(Long servicioPrestadoId) {
-        ServicioPrestado servicioPrestado = servicioPrestadoRepository.findById(servicioPrestadoId)
+        ServicioPrestado servicioPrestado = servicioPrestadoRepository
+                .findById(Objects.requireNonNull(servicioPrestadoId))
                 .orElseThrow(() -> new ResourceNotFoundException("ServicioPrestado", "id", servicioPrestadoId));
 
         StringBuilder resumen = new StringBuilder();
@@ -163,7 +166,7 @@ public class ServicioPrestadoService {
 
     @Transactional(readOnly = true)
     public List<ServicioPrestadoResponse> obtenerPorCita(Long citaId) {
-        return servicioPrestadoRepository.findByCitaId(citaId)
+        return servicioPrestadoRepository.findByCitaId(Objects.requireNonNull(citaId))
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -174,14 +177,14 @@ public class ServicioPrestadoService {
         Servicio servicio = servicioPrestado.getServicio();
 
         return ServicioPrestadoResponse.builder()
-                .idPrestado(servicioPrestado.getIdPrestado())
+                .idPrestado(Objects.requireNonNull(servicioPrestado.getIdPrestado()))
                 .fechaEjecucion(servicioPrestado.getFechaEjecucion())
                 .observaciones(servicioPrestado.getObservaciones())
                 .costoTotal(servicioPrestado.getCostoTotal())
                 .insumos(parseInsumos(servicioPrestado.getInsumosConsumidos()))
                 .cita(cita != null ? mapCitaToResponse(cita) : null)
                 .servicio(servicio != null ? ServicioPrestadoResponse.ServicioCatalogo.builder()
-                        .id(servicio.getIdServicio())
+                        .id(Objects.requireNonNull(servicio.getIdServicio()))
                         .nombre(servicio.getNombre())
                         .precioBase(servicio.getPrecioBase())
                         .build() : null)
@@ -204,7 +207,8 @@ public class ServicioPrestadoService {
             return Collections.emptyList();
         }
         try {
-            ServicioPrestadoInsumoRequest[] insumos = objectMapper.readValue(insumosJson, ServicioPrestadoInsumoRequest[].class);
+            ServicioPrestadoInsumoRequest[] insumos = objectMapper.readValue(insumosJson,
+                    ServicioPrestadoInsumoRequest[].class);
             return Arrays.stream(insumos)
                     .map(item -> ServicioPrestadoResponse.InsumoConsumido.builder()
                             .productoId(item.getProductoId())
@@ -220,20 +224,22 @@ public class ServicioPrestadoService {
     private CitaResponse mapCitaToResponse(Cita cita) {
         Cliente propietario = cita.getPaciente() != null ? cita.getPaciente().getCliente() : null;
         return CitaResponse.builder()
-                .idCita(cita.getIdCita())
+                .idCita(Objects.requireNonNull(cita.getIdCita()))
                 .fechaHora(cita.getFechaHora())
                 .estado(cita.getEstado())
                 .tipoServicio(cita.getTipoServicio())
                 .motivo(cita.getMotivo())
                 .triageNivel(cita.getTriageNivel())
                 .paciente(CitaResponse.PacienteSummary.builder()
-                        .id(cita.getPaciente() != null ? cita.getPaciente().getIdPaciente() : null)
+                        .id(cita.getPaciente() != null ? Objects.requireNonNull(cita.getPaciente().getIdPaciente())
+                                : null)
                         .nombre(cita.getPaciente() != null ? cita.getPaciente().getNombre() : null)
                         .especie(cita.getPaciente() != null ? cita.getPaciente().getEspecie() : null)
-                        .propietario(propietario != null ? propietario.getNombre() + " " + propietario.getApellido() : null)
+                        .propietario(
+                                propietario != null ? propietario.getNombre() + " " + propietario.getApellido() : null)
                         .build())
                 .veterinario(cita.getVeterinario() != null ? CitaResponse.VeterinarioSummary.builder()
-                        .id(cita.getVeterinario().getIdUsuario())
+                        .id(Objects.requireNonNull(cita.getVeterinario().getIdUsuario()))
                         .nombreCompleto(cita.getVeterinario().getNombre() + " " + cita.getVeterinario().getApellido())
                         .especialidad(cita.getVeterinario().getEspecialidad())
                         .build() : null)
@@ -259,7 +265,7 @@ public class ServicioPrestadoService {
             salidaRequest.setProductoId(insumo.getProductoId());
             salidaRequest.setCantidad(insumo.getCantidad().intValue());
             salidaRequest.setReferencia("SERVICIO_PRESTADO-" + servicioPrestadoId);
-            
+
             movimientoInventarioService.registrarSalida(salidaRequest);
             log.debug("✓ Salida de inventario registrada para producto ID: {}", insumo.getProductoId());
         } catch (Exception e) {
@@ -268,5 +274,3 @@ public class ServicioPrestadoService {
         }
     }
 }
-
-

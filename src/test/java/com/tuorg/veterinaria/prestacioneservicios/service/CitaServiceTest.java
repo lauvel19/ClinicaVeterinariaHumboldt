@@ -37,6 +37,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Pruebas unitarias de CitaService")
+@SuppressWarnings("null")
 class CitaServiceTest {
 
     @Mock
@@ -93,7 +94,8 @@ class CitaServiceTest {
         // Arrange
         when(pacienteRepository.findById(1L)).thenReturn(Optional.of(paciente));
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(veterinario));
-        when(citaRepository.existeCitaEnRango(anyLong(), any(LocalDateTime.class), any(LocalDateTime.class), anyString()))
+        when(citaRepository.existeCitaEnRango(anyLong(), any(LocalDateTime.class), any(LocalDateTime.class),
+                anyString()))
                 .thenReturn(false);
         when(citaRepository.save(any(Cita.class))).thenReturn(cita);
 
@@ -201,4 +203,3 @@ class CitaServiceTest {
         verify(citaRepository).save(any(Cita.class));
     }
 }
-

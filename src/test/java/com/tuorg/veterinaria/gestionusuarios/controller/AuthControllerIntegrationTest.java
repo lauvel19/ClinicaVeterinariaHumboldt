@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Objects;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -28,7 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Pruebas de integración para AuthController.
  * 
- * Verifica POST /api/auth/login: 401 con credenciales malas y 200 con token correcto.
+ * Verifica POST /api/auth/login: 401 con credenciales malas y 200 con token
+ * correcto.
  */
 @DisplayName("Pruebas de integración de AuthController")
 @Transactional
@@ -81,13 +83,14 @@ class AuthControllerIntegrationTest extends AbstractIntegrationTest {
         usuarioRepository.deleteAll();
         // NO eliminamos los roles porque son datos de referencia creados por Flyway
 
-        // Buscar o crear el rol CLIENTE (ya existe por Flyway, pero lo buscamos por si acaso)
+        // Buscar o crear el rol CLIENTE (ya existe por Flyway, pero lo buscamos por si
+        // acaso)
         rol = rolRepository.findByNombreRol("CLIENTE")
                 .orElseGet(() -> {
                     Rol nuevoRol = new Rol();
                     nuevoRol.setNombreRol("CLIENTE");
                     nuevoRol.setDescripcion("Rol de cliente");
-                    return rolRepository.save(nuevoRol);
+                    return Objects.requireNonNull(rolRepository.save(nuevoRol));
                 });
 
         // Crear usuario de prueba
@@ -99,7 +102,7 @@ class AuthControllerIntegrationTest extends AbstractIntegrationTest {
         usuario.setApellido("User");
         usuario.setRol(rol);
         usuario.setActivo(true);
-        usuario = usuarioRepository.save(usuario);
+        usuario = Objects.requireNonNull(usuarioRepository.save(usuario));
     }
 
     @Test
@@ -111,10 +114,11 @@ class AuthControllerIntegrationTest extends AbstractIntegrationTest {
         loginRequest.setPassword("password123");
 
         // Act & Assert
-        // NOTA: MockMvc no aplica automáticamente el context-path, por lo que usamos /auth/login en lugar de /api/auth/login
+        // NOTA: MockMvc no aplica automáticamente el context-path, por lo que usamos
+        // /auth/login en lugar de /api/auth/login
         mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                .content(Objects.requireNonNull(objectMapper.writeValueAsString(loginRequest))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.token").exists());
@@ -129,10 +133,11 @@ class AuthControllerIntegrationTest extends AbstractIntegrationTest {
         loginRequest.setPassword("passwordIncorrecta");
 
         // Act & Assert
-        // NOTA: MockMvc no aplica automáticamente el context-path, por lo que usamos /auth/login en lugar de /api/auth/login
+        // NOTA: MockMvc no aplica automáticamente el context-path, por lo que usamos
+        // /auth/login en lugar de /api/auth/login
         mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                .content(Objects.requireNonNull(objectMapper.writeValueAsString(loginRequest))))
                 .andExpect(status().isBadRequest());
     }
 
@@ -145,11 +150,11 @@ class AuthControllerIntegrationTest extends AbstractIntegrationTest {
         loginRequest.setPassword("password123");
 
         // Act & Assert
-        // NOTA: MockMvc no aplica automáticamente el context-path, por lo que usamos /auth/login en lugar de /api/auth/login
+        // NOTA: MockMvc no aplica automáticamente el context-path, por lo que usamos
+        // /auth/login en lugar de /api/auth/login
         mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                .content(Objects.requireNonNull(objectMapper.writeValueAsString(loginRequest))))
                 .andExpect(status().isBadRequest());
     }
 }
-

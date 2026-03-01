@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Servicio para la gestión de indicadores.
@@ -41,7 +42,7 @@ public class IndicadorService {
      */
     @Autowired
     public IndicadorService(IndicadorRepository indicadorRepository,
-                            EstadisticaRepository estadisticaRepository) {
+            EstadisticaRepository estadisticaRepository) {
         this.indicadorRepository = indicadorRepository;
         this.estadisticaRepository = estadisticaRepository;
     }
@@ -54,8 +55,8 @@ public class IndicadorService {
      */
     @Transactional(readOnly = true)
     public String evaluarTendencia(Long indicadorId) {
-        Indicador indicador = indicadorRepository.findById(indicadorId)
-            .orElseThrow(() -> new BusinessException("Indicador no encontrado"));
+        Indicador indicador = indicadorRepository.findById(Objects.requireNonNull(indicadorId))
+                .orElseThrow(() -> new BusinessException("Indicador no encontrado"));
 
         BigDecimal valorActual = indicador.getValorActual() != null ? indicador.getValorActual() : BigDecimal.ZERO;
         List<Estadistica> historicas = estadisticaRepository.findByNombre(indicador.getNombre());
@@ -90,4 +91,3 @@ public class IndicadorService {
         return indicadorRepository.findAll();
     }
 }
-

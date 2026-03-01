@@ -34,6 +34,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Pruebas unitarias de MovimientoInventarioService")
+@SuppressWarnings("null")
 class MovimientoInventarioServiceTest {
 
     @Mock
@@ -186,4 +187,3 @@ class MovimientoInventarioServiceTest {
         verify(movimientoInventarioRepository, never()).save(any());
     }
 }
-

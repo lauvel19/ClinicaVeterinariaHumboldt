@@ -7,6 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Optional;
+import java.util.Objects;
 
 /**
  * Configuración para auditoría de JPA.
@@ -35,18 +36,19 @@ public class AuditingConfiguration {
     public AuditorAware<String> auditorProvider() {
         return new AuditorAware<String>() {
             @Override
+            @org.springframework.lang.NonNull
             public Optional<String> getCurrentAuditor() {
                 // Obtener el contexto de autenticación
                 Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-                
+
                 // Si no hay autenticación o es anónima, usar SYSTEM
-                if (authentication == null || !authentication.isAuthenticated() 
-                    || "anonymousUser".equals(authentication.getPrincipal())) {
-                    return Optional.of("SYSTEM");
+                if (authentication == null || !authentication.isAuthenticated()
+                        || "anonymousUser".equals(authentication.getPrincipal())) {
+                    return Objects.requireNonNull(Optional.of("SYSTEM"));
                 }
-                
+
                 // Retornar el nombre del usuario actual
-                return Optional.of(authentication.getName());
+                return Objects.requireNonNull(Optional.of(authentication.getName()));
             }
         };
     }

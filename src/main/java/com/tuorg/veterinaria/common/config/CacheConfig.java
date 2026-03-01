@@ -7,6 +7,7 @@ import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 @Configuration
@@ -14,7 +15,8 @@ import java.util.concurrent.TimeUnit;
 public class CacheConfig {
 
     /**
-     * Configura el CacheManager con Caffeine para gestionar cachés de la aplicación.
+     * Configura el CacheManager con Caffeine para gestionar cachés de la
+     * aplicación.
      * 
      * Cachés configurados:
      * - productos: Lista completa de productos (TTL: 10 minutos)
@@ -26,14 +28,13 @@ public class CacheConfig {
     @Bean
     public CacheManager cacheManager() {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(
-            "productos",
-            "productosPorTipo", 
-            "veterinariosActivos",
-            "configuraciones",
-            "pacientesPorCliente"
-        );
-        
-        cacheManager.setCaffeine(caffeineCacheBuilder());
+                "productos",
+                "productosPorTipo",
+                "veterinariosActivos",
+                "configuraciones",
+                "pacientesPorCliente");
+
+        cacheManager.setCaffeine(Objects.requireNonNull(caffeineCacheBuilder()));
         return cacheManager;
     }
 
