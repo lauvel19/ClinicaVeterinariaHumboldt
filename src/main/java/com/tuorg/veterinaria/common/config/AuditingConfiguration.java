@@ -3,7 +3,6 @@ package com.tuorg.veterinaria.common.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -15,11 +14,13 @@ import java.util.Optional;
  * Define los beans necesarios para que Spring Data JPA automáticamente
  * llene los campos de auditoría (@CreatedBy, @LastModifiedBy, etc.)
  * 
+ * Nota: Spring Boot 3.2.0 habilita JPA Auditing automáticamente,
+ * solo necesitamos proporcionar el bean AuditorAware.
+ * 
  * @author Equipo de Desarrollo
  * @version 1.0.0
  */
 @Configuration
-@EnableJpaAuditing
 public class AuditingConfiguration {
 
     /**
